@@ -1,11 +1,11 @@
 import React from 'react';
+import logoImg from '../assets/logo.jpg';
 import { 
   Home, 
   ArrowLeftRight, 
   BarChart3, 
   Briefcase, 
   MoreHorizontal,
-  Wallet2,
   Bell
 } from 'lucide-react';
 
@@ -27,8 +27,12 @@ export default function Navbar({ activeTab = 'home', onSelectTab }) {
             
             {/* Brand Logo & Tagline */}
             <div className="flex items-center space-x-3 cursor-pointer" onClick={() => onSelectTab('home')}>
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-orange-500 via-amber-500 to-amber-400 flex items-center justify-center text-white shadow-md shadow-orange-500/20">
-                <Wallet2 className="w-5 h-5" />
+              <div className="w-10 h-10 rounded-2xl overflow-hidden bg-black flex items-center justify-center shadow-md shadow-orange-500/20 border border-amber-200/50 shrink-0 group">
+                <img 
+                  src={logoImg} 
+                  alt="ApnaWallet Logo" 
+                  className="w-full h-full object-cover transition-transform group-hover:scale-110 duration-200" 
+                />
               </div>
               <div>
                 <div className="flex items-center space-x-1.5">

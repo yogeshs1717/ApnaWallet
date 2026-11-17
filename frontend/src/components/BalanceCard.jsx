@@ -1,4 +1,5 @@
 import React from 'react';
+import logoImg from '../assets/logo.jpg';
 import { IndianRupee, Landmark, Banknote, TrendingUp, Sparkles } from 'lucide-react';
 
 export default function BalanceCard({
@@ -21,6 +22,11 @@ export default function BalanceCard({
         {/* Decorative background glow */}
         <div className="absolute -right-8 -top-8 w-44 h-44 rounded-full bg-white/10 blur-2xl pointer-events-none" />
         <div className="absolute -left-8 -bottom-8 w-36 h-36 rounded-full bg-amber-400/20 blur-xl pointer-events-none" />
+
+        {/* Branded Watermark in Hero Card */}
+        <div className="hidden sm:block absolute right-6 bottom-4 w-24 h-24 rounded-2xl overflow-hidden opacity-20 pointer-events-none border border-white/20 shadow-md">
+          <img src={logoImg} alt="ApnaWallet emblem" className="w-full h-full object-cover" />
+        </div>
 
         <div className="relative z-10 flex flex-col justify-between h-full space-y-4">
           <div className="flex items-center justify-between">
