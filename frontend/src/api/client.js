@@ -511,3 +511,30 @@ export async function recordRecurringExpense(id, scheduled_date) {
     body: JSON.stringify({ scheduled_date }),
   });
 }
+
+// ─── In-app Notifications (Prompt 08) ───────────────────────────────────────
+export async function getNotifications() {
+  return await fetchFromApi('/notifications/');
+}
+
+export async function getNotificationUnreadCount() {
+  return await fetchFromApi('/notifications/unread-count/');
+}
+
+export async function markNotificationRead(id) {
+  await initCsrfToken();
+  return await fetchFromApi(`/notifications/${id}/read/`, { method: 'POST' });
+}
+
+export async function dismissNotification(id) {
+  await initCsrfToken();
+  return await fetchFromApi(`/notifications/${id}/dismiss/`, { method: 'POST' });
+}
+
+export async function respondToDailyReminder(response) {
+  await initCsrfToken();
+  return await fetchFromApi('/notifications/daily-response/', {
+    method: 'POST',
+    body: JSON.stringify({ response }),
+  });
+}

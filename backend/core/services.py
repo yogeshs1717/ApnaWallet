@@ -1,8 +1,9 @@
 from decimal import Decimal
 import calendar
 from datetime import timedelta
+from zoneinfo import ZoneInfo
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 from .models import (
     Category,
@@ -22,6 +23,7 @@ from .models import (
     MonthlyBudget,
     RecurringExpenseOccurrence,
     RecurringExpenseTemplate,
+    Notification,
     Transaction,
 )
 
@@ -46,6 +48,92 @@ def seed_default_categories():
             name=cat['name'],
             defaults={'icon': cat['icon'], 'color': cat['color'], 'is_active': True}
         )
+
+
+def user_local_date(user):
+    try:
+        user_timezone = ZoneInfo(user.timezone_name)
+    except (AttributeError, ValueError):
+        user_timezone = ZoneInfo('UTC')
+    return timezone.localtime(timezone.now(), user_timezone).date()
+
+
+def _get_or_create_notification(user, identity_key, defaults):
+    try:
+        with transaction.atomic():
+            notification, _ = Notification.objects.get_or_create(
+                user=user, identity_key=identity_key, defaults=defaults
+            )
+    except IntegrityError:
+        notification = Notification.objects.get(user=user, identity_key=identity_key)
+    for field in ['title', 'message', 'related_id', 'due_date', 'amount']:
+        value = defaults.get(field)
+        if getattr(notification, field) != value:
+            setattr(notification, field, value)
+    notification.save(update_fields=['title', 'message', 'related_id', 'due_date', 'amount', 'updated_at'])
+    return notification
+
+
+def generate_notifications(user, upcoming_days=3):
+    today = user_local_date(user)
+    notifications = []
+    daily_key = f'daily-expense:{today.isoformat()}'
+    notifications.append(_get_or_create_notification(user, daily_key, {
+        'kind': Notification.Kind.DAILY_EXPENSE,
+        'title': "Today's expense update, please!",
+        'message': 'Review or record today\'s expenses.',
+        'related_id': None,
+        'due_date': today,
+        'amount': None,
+    }))
+
+    latest_due = today + timedelta(days=upcoming_days)
+    credits = CreditRecord.objects.filter(
+        user=user, outstanding_amount__gt=Decimal('0.00'),
+        status__in=[CreditStatus.UNPAID, CreditStatus.PARTIALLY_PAID],
+        pay_by_date__isnull=False, pay_by_date__lte=latest_due
+    )
+    for credit in credits:
+        key = f'credit-payment:{credit.pk}:{credit.pay_by_date.isoformat()}'
+        if credit.pay_by_date < today:
+            state = 'overdue'
+        elif credit.pay_by_date == today:
+            state = 'due today'
+        else:
+            state = 'upcoming'
+        notifications.append(_get_or_create_notification(user, key, {
+            'kind': Notification.Kind.CREDIT_PAYMENT,
+            'title': f'Credit payment {state}',
+            'message': f'{credit.creditor_name}: ₹{credit.outstanding_amount:.2f} due {credit.pay_by_date}.',
+            'related_id': credit.pk,
+            'due_date': credit.pay_by_date,
+            'amount': credit.outstanding_amount,
+        }))
+
+    recurring = RecurringExpenseTemplate.objects.filter(
+        user=user, enabled=True, deleted_at__isnull=True, next_due_date__lte=latest_due
+    ).select_related('category')
+    for template in recurring:
+        if RecurringExpenseOccurrence.objects.filter(
+            template=template, scheduled_date=template.next_due_date
+        ).exists():
+            continue
+        if template.next_due_date < today:
+            state = 'overdue'
+        elif template.next_due_date == today:
+            state = 'due today'
+        else:
+            state = 'upcoming'
+        key = f'recurring-expense:{template.pk}:{template.next_due_date.isoformat()}'
+        notifications.append(_get_or_create_notification(user, key, {
+            'kind': Notification.Kind.RECURRING_EXPENSE,
+            'title': f'Recurring expense {state}',
+            'message': f'{template.name}: ₹{template.amount:.2f} due {template.next_due_date}.',
+            'related_id': template.pk,
+            'due_date': template.next_due_date,
+            'amount': template.amount,
+        }))
+    return notifications, today
 
 
 def advance_recurring_date(current_date, frequency):

@@ -32,6 +32,7 @@ from .models import (
     SavingsGoal,
     MonthlyBudget,
     RecurringExpenseTemplate,
+    Notification,
 )
 from .serializers import (
     AddCashSerializer,
@@ -66,6 +67,7 @@ from .serializers import (
     MonthlyBudgetSerializer,
     RecurringExpenseSerializer,
     RecurringExpenseOccurrenceSerializer,
+    NotificationSerializer,
 )
 from .services import (
     execute_add_cash,
@@ -88,6 +90,8 @@ from .services import (
     execute_savings_goal,
     execute_savings_withdrawal,
     execute_record_recurring_expense,
+    generate_notifications,
+    user_local_date,
 )
 
 
@@ -1172,3 +1176,83 @@ def recurring_expense_record_view(request, pk):
         'transaction': TransactionSerializer(txn).data,
         'account': FinancialAccountSerializer(account).data
     }, status=status.HTTP_201_CREATED)
+
+
+def _notification_payload(user):
+    generated, local_date = generate_notifications(user)
+    visible = [item for item in generated if item.dismissed_on != local_date]
+    unread_count = sum(1 for item in visible if not item.is_read)
+    return visible, local_date, unread_count
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def notifications_view(request):
+    notifications, local_date, unread_count = _notification_payload(request.user)
+    return Response({
+        'results': NotificationSerializer(
+            notifications, many=True, context={'local_date': local_date}
+        ).data,
+        'unread_count': unread_count,
+        'daily_popup': any(
+            item.kind == Notification.Kind.DAILY_EXPENSE and not item.is_read
+            for item in notifications if item.dismissed_on != local_date
+        ),
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def notification_unread_count_view(request):
+    _, _, unread_count = _notification_payload(request.user)
+    return Response({'unread_count': unread_count})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def notification_read_view(request, pk):
+    try:
+        notification = Notification.objects.get(pk=pk, user=request.user)
+    except Notification.DoesNotExist:
+        return Response({'detail': 'Notification not found.'}, status=status.HTTP_404_NOT_FOUND)
+    notification.is_read = True
+    notification.save(update_fields=['is_read', 'updated_at'])
+    return Response(NotificationSerializer(
+        notification, context={'local_date': user_local_date(request.user)}
+    ).data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def notification_dismiss_view(request, pk):
+    try:
+        notification = Notification.objects.get(pk=pk, user=request.user)
+    except Notification.DoesNotExist:
+        return Response({'detail': 'Notification not found.'}, status=status.HTTP_404_NOT_FOUND)
+    notification.is_read = True
+    notification.dismissed_on = user_local_date(request.user)
+    notification.save(update_fields=['is_read', 'dismissed_on', 'updated_at'])
+    return Response({'message': 'Notification dismissed for today.'})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def daily_notification_response_view(request):
+    response = request.data.get('response')
+    if response not in ('updated', 'no_change', 'close'):
+        return Response({'response': 'Use updated, no_change, or close.'}, status=status.HTTP_400_BAD_REQUEST)
+    today = user_local_date(request.user)
+    notification, _ = Notification.objects.get_or_create(
+        user=request.user,
+        identity_key=f'daily-expense:{today.isoformat()}',
+        defaults={
+            'kind': Notification.Kind.DAILY_EXPENSE,
+            'title': "Today's expense update, please!",
+            'message': 'Review or record today\'s expenses.',
+            'due_date': today,
+        }
+    )
+    notification.is_read = True
+    notification.dismissed_on = today
+    notification.save(update_fields=['is_read', 'dismissed_on', 'updated_at'])
+    return Response({'message': 'Daily reminder response saved.'})

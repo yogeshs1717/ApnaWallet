@@ -1,6 +1,7 @@
 import React from 'react';
 import logoImg from '../assets/logo.jpg';
 import { useAuth } from '../context/AuthContext';
+import NotificationCenter from './NotificationCenter';
 import {
   Home,
   ArrowLeftRight,
@@ -9,13 +10,12 @@ import {
   Briefcase,
   BarChart3,
   MoreHorizontal,
-  Bell,
   LogOut,
   User as UserIcon,
   LogIn
 } from 'lucide-react';
 
-export default function Navbar({ activeTab = 'home', onSelectTab }) {
+export default function Navbar({ activeTab = 'home', onSelectTab, onOpenExpense }) {
   const { user, isAuthenticated, logout, setAuthView } = useAuth();
 
   // Desktop navigation items
@@ -96,6 +96,7 @@ export default function Navbar({ activeTab = 'home', onSelectTab }) {
             <div className="flex items-center space-x-2">
               {isAuthenticated ? (
                 <div className="flex items-center space-x-2">
+                  <NotificationCenter onNavigate={onSelectTab} onOpenExpense={onOpenExpense} />
                   <div className="hidden sm:flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-amber-50/80 border border-amber-200/60">
                     <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-orange-500 to-amber-500 text-white flex items-center justify-center text-xs font-bold shadow-2xs">
                       {user?.full_name?.charAt(0) || 'U'}

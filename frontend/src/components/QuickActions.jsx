@@ -2,7 +2,7 @@
  * QuickActions.jsx
  * Prompt 05 — Milestone 3, 6, 10: Wire Lend and Credit quick actions
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { PlusCircle, ArrowDownRight, HandCoins, CreditCard, ArrowLeftRight, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import AddCashModal from './transactions/AddCashModal';
@@ -11,9 +11,15 @@ import TransferModal from './transactions/TransferModal';
 import LendModal from './transactions/LendModal';
 import CreditModal from './transactions/CreditModal';
 
-export default function QuickActions({ onTransactionSuccess }) {
+export default function QuickActions({ expenseOpenSignal, onTransactionSuccess }) {
   const { selectedAccount, refreshUserData, isAuthenticated, setAuthView } = useAuth();
   const [activeModal, setActiveModal] = useState(null); // 'add-cash' | 'expense' | 'transfer' | 'lend' | 'credit' | null
+
+  useEffect(() => {
+    if (expenseOpenSignal > 0 && isAuthenticated) {
+      setActiveModal('expense');
+    }
+  }, [expenseOpenSignal, isAuthenticated]);
 
   const actions = [
     {

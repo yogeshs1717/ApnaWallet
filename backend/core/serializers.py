@@ -21,6 +21,7 @@ from .models import (
     MonthlyBudget,
     RecurringExpenseTemplate,
     RecurringExpenseOccurrence,
+    Notification,
 )
 
 
@@ -533,3 +534,34 @@ class RecurringExpenseSerializer(serializers.ModelSerializer):
         if not obj.enabled:
             return 'PAUSED'
         return 'OVERDUE' if obj.next_due_date < timezone.now().date() else 'UPCOMING'
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    status = serializers.SerializerMethodField()
+    related_screen = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Notification
+        fields = [
+            'id', 'kind', 'title', 'message', 'related_id', 'due_date',
+            'amount', 'is_read', 'dismissed_on', 'status', 'related_screen',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = fields
+
+    def get_status(self, obj):
+        if obj.kind == Notification.Kind.DAILY_EXPENSE:
+            return 'ACTION_REQUIRED'
+        if not obj.due_date:
+            return 'REMINDER'
+        today = self.context.get('local_date', timezone.localdate())
+        if obj.due_date < today:
+            return 'OVERDUE'
+        if obj.due_date == today:
+            return 'DUE_TODAY'
+        return 'UPCOMING'
+
+    def get_related_screen(self, obj):
+        return 'credit' if obj.kind == Notification.Kind.CREDIT_PAYMENT else (
+            'reports' if obj.kind == Notification.Kind.RECURRING_EXPENSE else 'home'
+        )

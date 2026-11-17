@@ -35,6 +35,11 @@ from .views import (
     recurring_expenses_view,
     recurring_expense_detail_view,
     recurring_expense_record_view,
+    notifications_view,
+    notification_unread_count_view,
+    notification_read_view,
+    notification_dismiss_view,
+    daily_notification_response_view,
 )
 
 urlpatterns = [
@@ -88,6 +93,13 @@ urlpatterns = [
     path('recurring-expenses/', recurring_expenses_view, name='recurring_expenses'),
     path('recurring-expenses/<uuid:pk>/', recurring_expense_detail_view, name='recurring_expense_detail'),
     path('recurring-expenses/<uuid:pk>/record/', recurring_expense_record_view, name='recurring_expense_record'),
+
+    # In-app notifications (Prompt 08)
+    path('notifications/', notifications_view, name='notifications'),
+    path('notifications/unread-count/', notification_unread_count_view, name='notification_unread_count'),
+    path('notifications/<uuid:pk>/read/', notification_read_view, name='notification_read'),
+    path('notifications/<uuid:pk>/dismiss/', notification_dismiss_view, name='notification_dismiss'),
+    path('notifications/daily-response/', daily_notification_response_view, name='daily_notification_response'),
 
     # Password Recovery
     path('auth/password-reset/', password_reset_request_view, name='password_reset_request'),

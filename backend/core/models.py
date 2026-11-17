@@ -41,6 +41,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(unique=True, db_index=True)
     full_name = models.CharField(max_length=150)
+    timezone_name = models.CharField(max_length=64, default='Asia/Kolkata')
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -607,4 +608,31 @@ class RecurringExpenseOccurrence(models.Model):
         ordering = ['-scheduled_date', '-created_at']
         constraints = [
             models.UniqueConstraint(fields=['template', 'scheduled_date'], name='unique_recurring_occurrence')
+        ]
+
+
+class Notification(models.Model):
+    class Kind(models.TextChoices):
+        DAILY_EXPENSE = 'DAILY_EXPENSE', 'Daily Expense Reminder'
+        CREDIT_PAYMENT = 'CREDIT_PAYMENT', 'Credit Payment Reminder'
+        RECURRING_EXPENSE = 'RECURRING_EXPENSE', 'Recurring Expense Reminder'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications', db_index=True)
+    kind = models.CharField(max_length=32, choices=Kind.choices)
+    identity_key = models.CharField(max_length=180)
+    title = models.CharField(max_length=200)
+    message = models.CharField(max_length=255)
+    related_id = models.UUIDField(null=True, blank=True)
+    due_date = models.DateField(null=True, blank=True)
+    amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    is_read = models.BooleanField(default=False, db_index=True)
+    dismissed_on = models.DateField(null=True, blank=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['is_read', 'due_date', '-created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'identity_key'], name='unique_notification_identity_per_user')
         ]

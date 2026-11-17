@@ -1,5 +1,5 @@
 from decimal import Decimal
-from datetime import date
+from datetime import date, timedelta
 from django.contrib.auth.tokens import default_token_generator
 from django.core import mail
 from django.core.cache import cache
@@ -24,8 +24,9 @@ from .models import (
     MonthlyBudget,
     RecurringExpenseTemplate,
     RecurringExpenseOccurrence,
+    Notification,
 )
-from .services import advance_recurring_date
+from .services import advance_recurring_date, user_local_date
 
 
 class ApnaWalletSTQATestSuite(APITestCase):
@@ -1298,3 +1299,96 @@ class Prompt07BudgetRecurringTests(APITestCase):
         self.client.force_login(self.other_user)
         self.assertEqual(self.client.get(reverse('recurring_expenses'), {'account_id': str(self.account.id)}).status_code, status.HTTP_200_OK)
         self.assertEqual(len(self.client.get(reverse('recurring_expenses'), {'account_id': str(self.account.id)}).json()['results']), 0)
+
+
+class Prompt08NotificationTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email='notify@example.com', password='SecurePassword@123', full_name='Notify User')
+        self.other_user = User.objects.create_user(email='notify-other@example.com', password='SecurePassword@123', full_name='Other')
+        self.account = FinancialAccount.objects.create(user=self.user, name='Personal', is_default=True,
+                                                       cash_balance=Decimal('1000.00'), bank_balance=Decimal('0.00'))
+        self.today = user_local_date(self.user)
+        self.client.force_login(self.user)
+
+    def get_notifications(self):
+        return self.client.get(reverse('notifications')).json()
+
+    def test_not_01_daily_popup_and_not_02_dismissal_persist(self):
+        first = self.get_notifications()
+        self.assertTrue(first['daily_popup'])
+        self.assertEqual(Notification.objects.filter(user=self.user, kind=Notification.Kind.DAILY_EXPENSE).count(), 1)
+        response = self.client.post(reverse('daily_notification_response'), {'response': 'no_change'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        second = self.get_notifications()
+        self.assertFalse(second['daily_popup'])
+        self.assertEqual(Notification.objects.filter(user=self.user, kind=Notification.Kind.DAILY_EXPENSE).count(), 1)
+
+    def test_not_03_daily_state_is_eligible_on_next_calendar_day(self):
+        self.get_notifications()
+        daily = Notification.objects.get(user=self.user, kind=Notification.Kind.DAILY_EXPENSE)
+        daily.dismissed_on = self.today - timedelta(days=1)
+        daily.is_read = False
+        daily.save()
+        self.assertTrue(self.get_notifications()['daily_popup'])
+
+    def test_not_04_daily_state_is_shared_across_devices_and_not_14_duplicate_safe(self):
+        self.get_notifications()
+        self.client.logout()
+        self.client.force_login(self.user)
+        self.get_notifications()
+        self.assertEqual(Notification.objects.filter(user=self.user, identity_key=f'daily-expense:{self.today}').count(), 1)
+
+    def test_not_05_06_07_08_credit_due_window_status_and_exclusions(self):
+        upcoming = CreditRecord.objects.create(
+            user=self.user, account=self.account, creditor_name='Upcoming', original_amount=Decimal('500.00'),
+            outstanding_amount=Decimal('500.00'), pay_by_date=self.today + timedelta(days=2)
+        )
+        CreditRecord.objects.create(
+            user=self.user, account=self.account, creditor_name='Paid', original_amount=Decimal('100.00'),
+            outstanding_amount=Decimal('0.00'), status='FULLY_PAID', pay_by_date=self.today
+        )
+        CreditRecord.objects.create(
+            user=self.user, account=self.account, creditor_name='No date', original_amount=Decimal('100.00'),
+            outstanding_amount=Decimal('100.00')
+        )
+        overdue = CreditRecord.objects.create(
+            user=self.user, account=self.account, creditor_name='Overdue', original_amount=Decimal('700.00'),
+            outstanding_amount=Decimal('700.00'), pay_by_date=self.today - timedelta(days=1)
+        )
+        results = self.get_notifications()['results']
+        credit_results = [item for item in results if item['kind'] == 'CREDIT_PAYMENT']
+        self.assertEqual({item['related_id'] for item in credit_results}, {str(upcoming.id), str(overdue.id)})
+        self.assertEqual(next(item['status'] for item in credit_results if item['related_id'] == str(overdue.id)), 'OVERDUE')
+
+    def test_not_09_10_11_recurring_due_disabled_and_recorded_exclusions(self):
+        template = RecurringExpenseTemplate.objects.create(
+            user=self.user, account=self.account, name='Internet', amount=Decimal('75.00'),
+            balance_type='CASH', frequency='MONTHLY', start_date=self.today,
+            next_due_date=self.today, note='Internet bill'
+        )
+        disabled = RecurringExpenseTemplate.objects.create(
+            user=self.user, account=self.account, name='Disabled', amount=Decimal('50.00'),
+            balance_type='CASH', frequency='MONTHLY', start_date=self.today,
+            next_due_date=self.today, note='Disabled bill', enabled=False
+        )
+        first = [item for item in self.get_notifications()['results'] if item['kind'] == 'RECURRING_EXPENSE']
+        self.assertEqual([item['related_id'] for item in first], [str(template.id)])
+        self.client.post(reverse('recurring_expense_record', kwargs={'pk': template.id}), format='json')
+        second = [item for item in self.get_notifications()['results'] if item['kind'] == 'RECURRING_EXPENSE']
+        self.assertEqual(second, [])
+        self.assertNotIn(str(disabled.id), [item['related_id'] for item in second])
+
+    def test_not_12_unread_count_updates_after_read_and_dismiss(self):
+        data = self.get_notifications()
+        self.assertEqual(data['unread_count'], 1)
+        daily_id = next(item['id'] for item in data['results'] if item['kind'] == 'DAILY_EXPENSE')
+        self.client.post(reverse('notification_read', kwargs={'pk': daily_id}), format='json')
+        self.assertEqual(self.client.get(reverse('notification_unread_count')).json()['unread_count'], 0)
+
+    def test_not_13_user_cannot_access_another_users_notification(self):
+        notification = Notification.objects.create(
+            user=self.other_user, kind=Notification.Kind.DAILY_EXPENSE,
+            identity_key='private', title='Private', message='Private'
+        )
+        response = self.client.post(reverse('notification_read', kwargs={'pk': notification.id}), format='json')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

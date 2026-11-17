@@ -12,6 +12,7 @@ import AuthModal from './components/auth/AuthModal';
 
 function MainApp() {
   const [activeTab, setActiveTab] = useState('home');
+  const [expenseOpenSignal, setExpenseOpenSignal] = useState(0);
   const { authView, setAuthView } = useAuth();
 
   // Reset token URL query detection (e.g. from password recovery email link)
@@ -31,8 +32,11 @@ function MainApp() {
 
   return (
     <>
-      <AppLayout activeTab={activeTab} onSelectTab={setActiveTab}>
-        {activeTab === 'home'     ? <Dashboard onNavigateTab={setActiveTab} /> :
+      <AppLayout activeTab={activeTab} onSelectTab={setActiveTab} onOpenExpense={() => {
+        setActiveTab('home');
+        setExpenseOpenSignal((value) => value + 1);
+      }}>
+        {activeTab === 'home'     ? <Dashboard onNavigateTab={setActiveTab} expenseOpenSignal={expenseOpenSignal} /> :
          activeTab === 'activity' ? <ActivityPage /> :
          activeTab === 'lending'  ? <LendingPage /> :
          activeTab === 'credit'   ? <CreditPage /> :

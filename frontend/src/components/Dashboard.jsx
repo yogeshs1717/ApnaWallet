@@ -16,7 +16,7 @@ import RecentTransactions from './RecentTransactions';
 import ApiStatus from './ApiStatus';
 import { Sparkles, Shield, ArrowRight } from 'lucide-react';
 
-export default function Dashboard({ onNavigateTab }) {
+export default function Dashboard({ onNavigateTab, expenseOpenSignal }) {
   const {
     user,
     accounts,
@@ -109,7 +109,7 @@ export default function Dashboard({ onNavigateTab }) {
       />
 
       {/* Quick Actions — open modals, call refreshUserData on success */}
-      <QuickActions onTransactionSuccess={() => setRefreshTrigger((n) => n + 1)} />
+      <QuickActions expenseOpenSignal={expenseOpenSignal} onTransactionSuccess={() => setRefreshTrigger((n) => n + 1)} />
 
       {/* Recent Transactions — re-fetches when refreshTrigger changes */}
       <RecentTransactions refreshTrigger={refreshTrigger} />
