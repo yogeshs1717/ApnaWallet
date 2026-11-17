@@ -143,7 +143,9 @@ class Transaction(models.Model):
         CREDIT = 'CREDIT', 'Credit'
         CREDIT_REPAYMENT = 'CREDIT_REPAYMENT', 'Credit Repayment'
         SAVINGS_ALLOCATION = 'SAVINGS_ALLOCATION', 'Savings Allocation'
+        SAVINGS_WITHDRAWAL = 'SAVINGS_WITHDRAWAL', 'Savings Withdrawal'
         INVESTMENT_PURCHASE = 'INVESTMENT_PURCHASE', 'Investment Purchase'
+        INVESTMENT_SALE = 'INVESTMENT_SALE', 'Investment Sale'
 
     class BalanceType(models.TextChoices):
         CASH = 'CASH', 'Cash'
@@ -450,3 +452,89 @@ class CreditRepayment(models.Model):
 
     def __str__(self):
         return f"Repayment of ₹{self.amount} to {self.credit.creditor_name}"
+
+
+class SavingsGoal(models.Model):
+    class Status(models.TextChoices):
+        ACTIVE = 'ACTIVE', 'Active'
+        COMPLETED = 'COMPLETED', 'Completed'
+        CANCELLED = 'CANCELLED', 'Cancelled'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='savings_goals', db_index=True)
+    account = models.ForeignKey(FinancialAccount, on_delete=models.CASCADE, related_name='savings_goals')
+    name = models.CharField(max_length=120)
+    target_amount = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
+    saved_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'), validators=[MinValueValidator(Decimal('0.00'))])
+    target_date = models.DateField(null=True, blank=True)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.ACTIVE, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['user'], condition=models.Q(status='ACTIVE'), name='one_active_savings_goal_per_user')
+        ]
+
+    @property
+    def progress_percentage(self):
+        if not self.target_amount:
+            return Decimal('0.00')
+        return min(Decimal('100.00'), (self.saved_amount / self.target_amount) * Decimal('100'))
+
+
+class SavingsDeposit(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    goal = models.ForeignKey(SavingsGoal, on_delete=models.PROTECT, related_name='deposits')
+    amount = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
+    source_balance_type = models.CharField(max_length=8, choices=Transaction.BalanceType.choices)
+    transaction = models.ForeignKey(Transaction, on_delete=models.PROTECT, related_name='savings_deposits')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class SavingsWithdrawal(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    goal = models.ForeignKey(SavingsGoal, on_delete=models.PROTECT, related_name='withdrawals')
+    amount = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
+    destination_balance_type = models.CharField(max_length=8, choices=Transaction.BalanceType.choices)
+    transaction = models.ForeignKey(Transaction, on_delete=models.PROTECT, related_name='savings_withdrawals')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class Investment(models.Model):
+    class InvestmentType(models.TextChoices):
+        GOLD = 'GOLD', 'Gold'
+        CRYPTO = 'CRYPTO', 'Crypto'
+        STOCKS = 'STOCKS', 'Stocks'
+        MUTUAL_FUNDS = 'MUTUAL_FUNDS', 'Mutual Funds'
+        OTHER = 'OTHER', 'Other'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='investments', db_index=True)
+    account = models.ForeignKey(FinancialAccount, on_delete=models.CASCADE, related_name='investments')
+    name = models.CharField(max_length=120)
+    investment_type = models.CharField(max_length=20, choices=InvestmentType.choices)
+    cost_basis = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.00'))])
+    platform = models.CharField(max_length=120)
+    purchase_date = models.DateField(default=timezone.now)
+    note = models.CharField(max_length=255, blank=True, default='')
+    is_closed = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-purchase_date', '-created_at']
+
+
+class InvestmentSale(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    investment = models.ForeignKey(Investment, on_delete=models.PROTECT, related_name='sales')
+    cost_basis_sold = models.DecimalField(max_digits=12, decimal_places=2)
+    proceeds = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.00'))])
+    realized_gain_loss = models.DecimalField(max_digits=12, decimal_places=2)
+    destination_balance_type = models.CharField(max_length=8, choices=Transaction.BalanceType.choices)
+    sale_date = models.DateField(default=timezone.now)
+    note = models.CharField(max_length=255, blank=True, default='')
+    transaction = models.ForeignKey(Transaction, on_delete=models.PROTECT, related_name='investment_sales')
+    created_at = models.DateTimeField(auto_now_add=True)

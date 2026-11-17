@@ -425,3 +425,39 @@ export async function repayCredit(creditId, { amount, payment_source, date, note
     body: JSON.stringify({ amount, payment_source, date, note }),
   });
 }
+
+// ─── Savings & Investment Operations (Prompt 06) ────────────────────────────
+export async function getSavings() {
+  return await fetchFromApi('/savings/');
+}
+export async function createSavingsGoal({ name, target_amount, target_date }) {
+  await initCsrfToken();
+  return await fetchFromApi('/savings/', { method: 'POST', body: JSON.stringify({ name, target_amount, target_date: target_date || null }) });
+}
+export async function depositSavings(goalId, { amount, balance_type }) {
+  await initCsrfToken();
+  return await fetchFromApi(`/savings/${goalId}/deposit/`, { method: 'POST', body: JSON.stringify({ amount, balance_type }) });
+}
+export async function withdrawSavings(goalId, { amount, balance_type }) {
+  await initCsrfToken();
+  return await fetchFromApi(`/savings/${goalId}/withdraw/`, { method: 'POST', body: JSON.stringify({ amount, balance_type }) });
+}
+export async function actOnSavingsGoal(goalId, action, balance_type) {
+  await initCsrfToken();
+  return await fetchFromApi(`/savings/${goalId}/action/`, { method: 'POST', body: JSON.stringify({ action, balance_type }) });
+}
+export async function getInvestments() {
+  return await fetchFromApi('/investments/');
+}
+export async function createInvestment(payload) {
+  await initCsrfToken();
+  return await fetchFromApi('/investments/', { method: 'POST', body: JSON.stringify(payload) });
+}
+export async function updateInvestment(id, payload) {
+  await initCsrfToken();
+  return await fetchFromApi(`/investments/${id}/`, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+export async function sellInvestment(id, payload) {
+  await initCsrfToken();
+  return await fetchFromApi(`/investments/${id}/`, { method: 'POST', body: JSON.stringify(payload) });
+}

@@ -18,6 +18,8 @@ from .models import (
     LendingRepayment,
     Transaction,
     User,
+    Investment,
+    SavingsGoal,
 )
 
 
@@ -1124,3 +1126,61 @@ class ApnaWalletSTQATestSuite(APITestCase):
         # Second attempt
         dup_res = self.client.post(repay_url, {'amount': '500.00', 'payment_source': 'CASH'}, format='json')
         self.assertEqual(dup_res.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class Prompt06SavingsInvestmentTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email='saver@example.com', password='SecurePassword@123', full_name='Saver')
+        self.account = FinancialAccount.objects.create(user=self.user, name='Personal', is_default=True,
+                                                       cash_balance=Decimal('5000.00'), bank_balance=Decimal('0.00'))
+        self.client.force_login(self.user)
+
+    def test_savings_deposit_and_withdrawal_update_available_balance(self):
+        goal = self.client.post(reverse('savings_goals'), {'name': 'Emergency Fund', 'target_amount': '2000.00'}, format='json')
+        self.assertEqual(goal.status_code, status.HTTP_201_CREATED)
+        goal_id = goal.json()['id']
+        deposit = self.client.post(reverse('savings_deposit', kwargs={'pk': goal_id}),
+                                   {'amount': '1000.00', 'balance_type': 'CASH'}, format='json')
+        self.assertEqual(deposit.status_code, status.HTTP_200_OK)
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.cash_balance, Decimal('4000.00'))
+        withdrawal = self.client.post(reverse('savings_withdrawal', kwargs={'pk': goal_id}),
+                                      {'amount': '300.00', 'balance_type': 'CASH'}, format='json')
+        self.assertEqual(withdrawal.status_code, status.HTTP_200_OK)
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.cash_balance, Decimal('4300.00'))
+
+    def test_only_one_active_goal_and_insufficient_deposit_rolls_back(self):
+        first = self.client.post(reverse('savings_goals'), {'name': 'Goal 1', 'target_amount': '1000.00'}, format='json')
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        second = self.client.post(reverse('savings_goals'), {'name': 'Goal 2', 'target_amount': '1000.00'}, format='json')
+        self.assertEqual(second.status_code, status.HTTP_400_BAD_REQUEST)
+        failed = self.client.post(reverse('savings_deposit', kwargs={'pk': first.json()['id']}),
+                                  {'amount': '6000.00', 'balance_type': 'CASH'}, format='json')
+        self.assertEqual(failed.status_code, status.HTTP_400_BAD_REQUEST)
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.cash_balance, Decimal('5000.00'))
+
+    def test_investment_purchase_and_partial_sale_track_cost_basis_and_gain(self):
+        purchase = self.client.post(reverse('investments'), {
+            'name': 'Index Fund', 'investment_type': 'MUTUAL_FUNDS', 'amount': '1000.00',
+            'platform': 'Broker', 'balance_type': 'CASH'
+        }, format='json')
+        self.assertEqual(purchase.status_code, status.HTTP_201_CREATED)
+        investment_id = purchase.json()['investment']['id']
+        sale = self.client.post(reverse('investment_detail', kwargs={'pk': investment_id}), {
+            'cost_basis_sold': '400.00', 'proceeds': '450.00', 'balance_type': 'CASH'
+        }, format='json')
+        self.assertEqual(sale.status_code, status.HTTP_200_OK)
+        self.assertEqual(sale.json()['sale']['realized_gain_loss'], '50.00')
+        self.assertEqual(sale.json()['investment']['cost_basis'], '600.00')
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.cash_balance, Decimal('4450.00'))
+
+    def test_cross_user_savings_access_denied(self):
+        goal = self.client.post(reverse('savings_goals'), {'name': 'Private', 'target_amount': '100.00'}, format='json')
+        other = User.objects.create_user(email='other@example.com', password='SecurePassword@123', full_name='Other')
+        self.client.force_login(other)
+        response = self.client.post(reverse('savings_deposit', kwargs={'pk': goal.json()['id']}),
+                                    {'amount': '10.00', 'balance_type': 'CASH'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

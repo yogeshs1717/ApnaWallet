@@ -12,6 +12,11 @@ from .models import (
     LendingRepayment,
     Transaction,
     User,
+    Investment,
+    InvestmentSale,
+    SavingsGoal,
+    SavingsDeposit,
+    SavingsWithdrawal,
 )
 
 
@@ -440,3 +445,40 @@ class UpdateCreditMetadataSerializer(serializers.Serializer):
     description = serializers.CharField(max_length=255, required=False, allow_blank=True)
     pay_by_date = serializers.DateField(required=False, allow_null=True)
     clear_due_date = serializers.BooleanField(required=False, default=False)
+
+
+class SavingsGoalSerializer(serializers.ModelSerializer):
+    progress_percentage = serializers.SerializerMethodField()
+    class Meta:
+        model = SavingsGoal
+        fields = ['id', 'name', 'target_amount', 'saved_amount', 'target_date', 'status', 'progress_percentage', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'saved_amount', 'status', 'progress_percentage', 'created_at', 'updated_at']
+
+    def get_progress_percentage(self, obj):
+        return f"{obj.progress_percentage:.2f}"
+
+
+class SavingsDepositSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SavingsDeposit
+        fields = ['id', 'amount', 'source_balance_type', 'created_at']
+
+
+class SavingsWithdrawalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SavingsWithdrawal
+        fields = ['id', 'amount', 'destination_balance_type', 'created_at']
+
+
+class InvestmentSaleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InvestmentSale
+        fields = ['id', 'cost_basis_sold', 'proceeds', 'realized_gain_loss', 'destination_balance_type', 'sale_date', 'note', 'created_at']
+
+
+class InvestmentSerializer(serializers.ModelSerializer):
+    sales = InvestmentSaleSerializer(many=True, read_only=True)
+    class Meta:
+        model = Investment
+        fields = ['id', 'name', 'investment_type', 'cost_basis', 'platform', 'purchase_date', 'note', 'is_closed', 'sales', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'cost_basis', 'is_closed', 'sales', 'created_at', 'updated_at']

@@ -25,6 +25,8 @@ from .models import (
     LendingRepayment,
     Transaction,
     User,
+    Investment,
+    SavingsGoal,
 )
 from .serializers import (
     AddCashSerializer,
@@ -51,6 +53,11 @@ from .serializers import (
     UpdateExpenseSerializer,
     UpdateLendingMetadataSerializer,
     UserProfileSerializer,
+    InvestmentSerializer,
+    InvestmentSaleSerializer,
+    SavingsGoalSerializer,
+    SavingsDepositSerializer,
+    SavingsWithdrawalSerializer,
 )
 from .services import (
     execute_add_cash,
@@ -66,6 +73,12 @@ from .services import (
     update_expense,
     update_lending_metadata,
     void_transaction,
+    execute_goal_action,
+    execute_investment_purchase,
+    execute_investment_sale,
+    execute_savings_deposit,
+    execute_savings_goal,
+    execute_savings_withdrawal,
 )
 
 
@@ -864,3 +877,101 @@ def credit_repay_view(request, pk):
         "transaction": TransactionSerializer(txn).data,
         "account": FinancialAccountSerializer(updated_account).data
     }, status=status.HTTP_200_OK)
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def savings_goals_view(request):
+    if request.method == 'GET':
+        goals = SavingsGoal.objects.filter(user=request.user).prefetch_related('deposits', 'withdrawals')
+        saved = sum((g.saved_amount for g in goals), Decimal('0.00'))
+        active = goals.filter(status=SavingsGoal.Status.ACTIVE).first()
+        return Response({
+            'saved_wallet_balance': f'{saved:.2f}',
+            'active_goal': SavingsGoalSerializer(active).data if active else None,
+            'goals': SavingsGoalSerializer(goals, many=True).data,
+        })
+    serializer = SavingsGoalSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        goal = execute_savings_goal(request.user, resolve_target_account(request.user), serializer.validated_data['name'],
+                                    serializer.validated_data['target_amount'], serializer.validated_data.get('target_date'))
+    except (DjangoValidationError, FinancialAccount.DoesNotExist) as err:
+        return Response({'detail': err.messages[0] if hasattr(err, 'messages') else str(err)}, status=status.HTTP_400_BAD_REQUEST)
+    return Response(SavingsGoalSerializer(goal).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def savings_deposit_view(request, pk):
+    amount = request.data.get('amount')
+    try:
+        amount = Decimal(str(amount))
+        deposit, goal, txn, account = execute_savings_deposit(pk, request.user, amount, request.data.get('balance_type'), request.data.get('date'))
+    except (DjangoValidationError, ValueError, TypeError, SavingsGoal.DoesNotExist) as err:
+        return Response({'detail': err.messages[0] if hasattr(err, 'messages') else str(err)}, status=status.HTTP_400_BAD_REQUEST)
+    return Response({'deposit': SavingsDepositSerializer(deposit).data, 'goal': SavingsGoalSerializer(goal).data,
+                     'account': FinancialAccountSerializer(account).data, 'transaction': TransactionSerializer(txn).data})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def savings_withdrawal_view(request, pk):
+    try:
+        amount = Decimal(str(request.data.get('amount')))
+        withdrawal, goal, txn, account = execute_savings_withdrawal(pk, request.user, amount, request.data.get('balance_type'), request.data.get('date'))
+    except (DjangoValidationError, ValueError, TypeError, SavingsGoal.DoesNotExist) as err:
+        return Response({'detail': err.messages[0] if hasattr(err, 'messages') else str(err)}, status=status.HTTP_400_BAD_REQUEST)
+    return Response({'withdrawal': SavingsWithdrawalSerializer(withdrawal).data, 'goal': SavingsGoalSerializer(goal).data,
+                     'account': FinancialAccountSerializer(account).data, 'transaction': TransactionSerializer(txn).data})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def savings_goal_action_view(request, pk):
+    try:
+        goal = execute_goal_action(pk, request.user, request.data.get('action'), request.data.get('balance_type'))
+    except (DjangoValidationError, SavingsGoal.DoesNotExist) as err:
+        return Response({'detail': err.messages[0] if hasattr(err, 'messages') else str(err)}, status=status.HTTP_400_BAD_REQUEST)
+    return Response(SavingsGoalSerializer(goal).data)
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def investments_view(request):
+    if request.method == 'GET':
+        investments = Investment.objects.filter(user=request.user).prefetch_related('sales')
+        total = sum((i.cost_basis for i in investments), Decimal('0.00'))
+        return Response({'total_invested': f'{total:.2f}', 'investments': InvestmentSerializer(investments, many=True).data})
+    data = request.data
+    try:
+        investment, txn, account = execute_investment_purchase(request.user, resolve_target_account(request.user, data.get('account_id')),
+            data['name'], data['investment_type'], Decimal(str(data['amount'])), data['platform'],
+            data.get('purchase_date'), data.get('note', ''), data.get('balance_type', 'BANK'))
+    except (DjangoValidationError, KeyError, ValueError, TypeError, FinancialAccount.DoesNotExist) as err:
+        return Response({'detail': err.messages[0] if hasattr(err, 'messages') else str(err)}, status=status.HTTP_400_BAD_REQUEST)
+    return Response({'investment': InvestmentSerializer(investment).data, 'account': FinancialAccountSerializer(account).data,
+                     'transaction': TransactionSerializer(txn).data}, status=status.HTTP_201_CREATED)
+
+
+@api_view(['PATCH', 'POST'])
+@permission_classes([IsAuthenticated])
+def investment_detail_view(request, pk):
+    try:
+        investment = Investment.objects.get(pk=pk, user=request.user)
+    except Investment.DoesNotExist:
+        return Response({'detail': 'Investment not found.'}, status=status.HTTP_404_NOT_FOUND)
+    if request.method == 'PATCH':
+        for field in ['name', 'investment_type', 'platform', 'purchase_date', 'note']:
+            if field in request.data:
+                setattr(investment, field, request.data[field])
+        investment.save()
+        return Response(InvestmentSerializer(investment).data)
+    try:
+        sale, investment, txn, account = execute_investment_sale(pk, request.user, Decimal(str(request.data['cost_basis_sold'])),
+            Decimal(str(request.data['proceeds'])), request.data['balance_type'], request.data.get('sale_date'), request.data.get('note', ''))
+    except (DjangoValidationError, KeyError, ValueError, TypeError, Investment.DoesNotExist) as err:
+        return Response({'detail': err.messages[0] if hasattr(err, 'messages') else str(err)}, status=status.HTTP_400_BAD_REQUEST)
+    return Response({'sale': InvestmentSaleSerializer(sale).data, 'investment': InvestmentSerializer(investment).data,
+                     'account': FinancialAccountSerializer(account).data, 'transaction': TransactionSerializer(txn).data})

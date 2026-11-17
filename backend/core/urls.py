@@ -24,6 +24,12 @@ from .views import (
     transaction_list_view,
     transfer_view,
     user_profile_view,
+    savings_goals_view,
+    savings_deposit_view,
+    savings_withdrawal_view,
+    savings_goal_action_view,
+    investments_view,
+    investment_detail_view,
 )
 
 urlpatterns = [
@@ -62,6 +68,14 @@ urlpatterns = [
     path('credit/', credit_list_view, name='credit_list'),
     path('credit/<uuid:pk>/', credit_detail_view, name='credit_detail'),
     path('credit/<uuid:pk>/repay/', credit_repay_view, name='credit_repay'),
+
+    # Savings & Investments (Prompt 06)
+    path('savings/', savings_goals_view, name='savings_goals'),
+    path('savings/<uuid:pk>/deposit/', savings_deposit_view, name='savings_deposit'),
+    path('savings/<uuid:pk>/withdraw/', savings_withdrawal_view, name='savings_withdrawal'),
+    path('savings/<uuid:pk>/action/', savings_goal_action_view, name='savings_goal_action'),
+    path('investments/', investments_view, name='investments'),
+    path('investments/<uuid:pk>/', investment_detail_view, name='investment_detail'),
 
     # Password Recovery
     path('auth/password-reset/', password_reset_request_view, name='password_reset_request'),
