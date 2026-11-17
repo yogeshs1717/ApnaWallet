@@ -16,7 +16,7 @@ import RecentTransactions from './RecentTransactions';
 import ApiStatus from './ApiStatus';
 import { Sparkles, Shield, ArrowRight } from 'lucide-react';
 
-export default function Dashboard() {
+export default function Dashboard({ onNavigateTab }) {
   const {
     user,
     accounts,
@@ -31,9 +31,11 @@ export default function Dashboard() {
 
   // QuickActions calls refreshUserData internally; we also bump the trigger
   // by wrapping setSelectedAccount so RecentTransactions sees the change
-  const cash  = parseFloat(selectedAccount?.cash_balance  || 0);
-  const bank  = parseFloat(selectedAccount?.bank_balance  || 0);
-  const total = cash + bank;
+  const cash   = parseFloat(selectedAccount?.cash_balance           || 0);
+  const bank   = parseFloat(selectedAccount?.bank_balance           || 0);
+  const lent   = parseFloat(selectedAccount?.total_lent_outstanding   || 0);
+  const credit = parseFloat(selectedAccount?.total_credit_outstanding || 0);
+  const total  = cash + bank;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -100,7 +102,10 @@ export default function Dashboard() {
         totalBalance={total}
         cashBalance={cash}
         bankBalance={bank}
+        lentBalance={lent}
+        creditBalance={credit}
         currency="₹"
+        onNavigateTab={onNavigateTab}
       />
 
       {/* Quick Actions — open modals, call refreshUserData on success */}

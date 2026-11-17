@@ -2,14 +2,27 @@ from decimal import Decimal
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
-from .models import Category, FinancialAccount, Transaction, User
+from .models import (
+    Category,
+    CreditRecord,
+    CreditRepayment,
+    FinancialAccount,
+    LendingAdjustment,
+    LendingRecord,
+    LendingRepayment,
+    Transaction,
+    User,
+)
 
 
 class FinancialAccountSerializer(serializers.ModelSerializer):
     """
     Serializer for User's Financial Account with precise balance formatting.
+    Includes running totals for Money Lent (receivables) and Credit Outstanding (liabilities).
     """
     total_balance = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    total_lent_outstanding = serializers.SerializerMethodField()
+    total_credit_outstanding = serializers.SerializerMethodField()
 
     class Meta:
         model = FinancialAccount
@@ -21,10 +34,29 @@ class FinancialAccountSerializer(serializers.ModelSerializer):
             'cash_balance',
             'bank_balance',
             'total_balance',
+            'total_lent_outstanding',
+            'total_credit_outstanding',
             'created_at',
             'updated_at'
         ]
-        read_only_fields = ['id', 'total_balance', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id',
+            'total_balance',
+            'total_lent_outstanding',
+            'total_credit_outstanding',
+            'created_at',
+            'updated_at'
+        ]
+
+    def get_total_lent_outstanding(self, obj):
+        from django.db.models import Sum
+        total = obj.lendings.aggregate(total=Sum('outstanding_amount'))['total']
+        return f"{total:.2f}" if total is not None else "0.00"
+
+    def get_total_credit_outstanding(self, obj):
+        from django.db.models import Sum
+        total = obj.credits.aggregate(total=Sum('outstanding_amount'))['total']
+        return f"{total:.2f}" if total is not None else "0.00"
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
@@ -118,46 +150,35 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         return value
 
 
-# -------------------------------------------------------------
-# Financial Engine Serializers (Prompt 04)
-# -------------------------------------------------------------
-
 class CategorySerializer(serializers.ModelSerializer):
-    """
-    Serializer for Expense / Income Categories.
-    """
     class Meta:
         model = Category
-        fields = ['id', 'name', 'icon', 'color', 'is_active', 'user']
-        read_only_fields = ['id', 'user']
+        fields = ['id', 'name', 'icon', 'color', 'is_active', 'created_at']
+        read_only_fields = ['id', 'created_at']
 
 
 class TransactionSerializer(serializers.ModelSerializer):
-    """
-    Serializer for Transaction ledger history.
-    """
-    category_details = CategorySerializer(source='category', read_only=True)
-    account_name = serializers.CharField(source='account.name', read_only=True)
+    category = CategorySerializer(read_only=True)
+    category_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
 
     class Meta:
         model = Transaction
         fields = [
             'id',
             'account',
-            'account_name',
             'transaction_type',
             'amount',
             'balance_type',
             'destination_balance_type',
             'category',
-            'category_details',
+            'category_id',
             'note',
             'date',
             'is_voided',
             'created_at',
             'updated_at'
         ]
-        read_only_fields = ['id', 'is_voided', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'account', 'created_at', 'updated_at']
 
 
 class AddCashSerializer(serializers.Serializer):
@@ -222,3 +243,200 @@ class UpdateExpenseSerializer(serializers.Serializer):
                 raise serializers.ValidationError("Note must contain at least 3 characters.")
             return trimmed
         return value
+
+
+# ==============================================================================
+# LENDING SERIALIZERS (Prompt 05)
+# ==============================================================================
+
+class LendingRepaymentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LendingRepayment
+        fields = [
+            'id',
+            'amount',
+            'balance_type',
+            'repayment_date',
+            'note',
+            'created_at'
+        ]
+        read_only_fields = ['id', 'created_at']
+
+
+class LendingAdjustmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LendingAdjustment
+        fields = [
+            'id',
+            'adjustment_amount',
+            'reason',
+            'previous_outstanding',
+            'new_outstanding',
+            'created_at'
+        ]
+        read_only_fields = ['id', 'created_at']
+
+
+class LendingRecordSerializer(serializers.ModelSerializer):
+    repayments = LendingRepaymentSerializer(many=True, read_only=True)
+    adjustments = LendingAdjustmentSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = LendingRecord
+        fields = [
+            'id',
+            'account',
+            'borrower_name',
+            'original_amount',
+            'outstanding_amount',
+            'amount_repaid',
+            'lending_date',
+            'notes',
+            'status',
+            'created_at',
+            'updated_at',
+            'repayments',
+            'adjustments'
+        ]
+        read_only_fields = [
+            'id',
+            'account',
+            'outstanding_amount',
+            'amount_repaid',
+            'status',
+            'created_at',
+            'updated_at',
+            'repayments',
+            'adjustments'
+        ]
+
+
+class CreateLendSerializer(serializers.Serializer):
+    account_id = serializers.UUIDField(required=False)
+    borrower_name = serializers.CharField(max_length=120, min_length=1)
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal('0.01'))
+    balance_type = serializers.ChoiceField(choices=['CASH', 'BANK'])
+    date = serializers.DateField(required=False)
+    note = serializers.CharField(max_length=255, required=False, allow_blank=True)
+
+    def validate_borrower_name(self, value):
+        trimmed = value.strip()
+        if not trimmed:
+            raise serializers.ValidationError("Borrower name cannot be empty.")
+        return trimmed
+
+
+class LendingRepaymentInputSerializer(serializers.Serializer):
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal('0.01'))
+    balance_type = serializers.ChoiceField(choices=['CASH', 'BANK'])
+    date = serializers.DateField(required=False)
+    note = serializers.CharField(max_length=255, required=False, allow_blank=True)
+
+
+class LendingAdjustmentInputSerializer(serializers.Serializer):
+    new_outstanding_amount = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal('0.00'))
+    reason = serializers.CharField(max_length=255, min_length=3)
+
+    def validate_reason(self, value):
+        trimmed = value.strip()
+        if len(trimmed) < 3:
+            raise serializers.ValidationError("Reason must contain at least 3 characters.")
+        return trimmed
+
+
+class UpdateLendingMetadataSerializer(serializers.Serializer):
+    borrower_name = serializers.CharField(max_length=120, required=False)
+    notes = serializers.CharField(max_length=255, required=False, allow_blank=True)
+
+
+# ==============================================================================
+# CREDIT SERIALIZERS (Prompt 05)
+# ==============================================================================
+
+class CreditRepaymentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CreditRepayment
+        fields = [
+            'id',
+            'amount',
+            'payment_source',
+            'repayment_date',
+            'note',
+            'created_at'
+        ]
+        read_only_fields = ['id', 'created_at']
+
+
+class CreditRecordSerializer(serializers.ModelSerializer):
+    repayments = CreditRepaymentSerializer(many=True, read_only=True)
+    is_overdue = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = CreditRecord
+        fields = [
+            'id',
+            'account',
+            'creditor_name',
+            'original_amount',
+            'outstanding_amount',
+            'amount_repaid',
+            'credit_date',
+            'pay_by_date',
+            'is_overdue',
+            'description',
+            'funds_received',
+            'received_balance_type',
+            'status',
+            'created_at',
+            'updated_at',
+            'repayments'
+        ]
+        read_only_fields = [
+            'id',
+            'account',
+            'outstanding_amount',
+            'amount_repaid',
+            'is_overdue',
+            'status',
+            'created_at',
+            'updated_at',
+            'repayments'
+        ]
+
+
+class CreateCreditSerializer(serializers.Serializer):
+    account_id = serializers.UUIDField(required=False)
+    creditor_name = serializers.CharField(max_length=120, min_length=1)
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal('0.01'))
+    credit_date = serializers.DateField(required=False)
+    pay_by_date = serializers.DateField(required=False, allow_null=True)
+    description = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    receive_funds = serializers.BooleanField(required=False, default=False)
+    destination_balance_type = serializers.ChoiceField(choices=['CASH', 'BANK'], required=False, allow_null=True)
+
+    def validate_creditor_name(self, value):
+        trimmed = value.strip()
+        if not trimmed:
+            raise serializers.ValidationError("Creditor name cannot be empty.")
+        return trimmed
+
+    def validate(self, attrs):
+        if attrs.get('receive_funds') and not attrs.get('destination_balance_type'):
+            raise serializers.ValidationError({
+                "destination_balance_type": "Destination balance type (CASH or BANK) is required when receiving funds."
+            })
+        return attrs
+
+
+class CreditRepaymentInputSerializer(serializers.Serializer):
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal('0.01'))
+    payment_source = serializers.ChoiceField(choices=['CASH', 'BANK'])
+    date = serializers.DateField(required=False)
+    note = serializers.CharField(max_length=255, required=False, allow_blank=True)
+
+
+class UpdateCreditMetadataSerializer(serializers.Serializer):
+    creditor_name = serializers.CharField(max_length=120, required=False)
+    description = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    pay_by_date = serializers.DateField(required=False, allow_null=True)
+    clear_due_date = serializers.BooleanField(required=False, default=False)

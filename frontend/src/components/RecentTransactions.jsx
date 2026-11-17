@@ -5,7 +5,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   Receipt, Clock, PlusCircle, ArrowDownRight, ArrowLeftRight,
-  Wallet, Landmark, Loader2, RefreshCw,
+  Wallet, Landmark, Loader2, RefreshCw, HandCoins, CreditCard, CheckCircle
 } from 'lucide-react';
 import { getTransactions } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -13,9 +13,13 @@ import { useAuth } from '../context/AuthContext';
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 const TYPE_CONFIG = {
-  ADD_CASH: { label: 'Cash In', color: 'bg-green-100 text-green-700', Icon: PlusCircle, sign: '+' },
-  EXPENSE:  { label: 'Expense', color: 'bg-rose-100 text-rose-700',   Icon: ArrowDownRight, sign: '-' },
-  TRANSFER: { label: 'Transfer', color: 'bg-blue-100 text-blue-700',  Icon: ArrowLeftRight, sign: '' },
+  ADD_CASH:          { label: 'Cash In',     color: 'bg-green-100 text-green-700',  Icon: PlusCircle,     sign: '+', amtColor: 'text-green-600' },
+  EXPENSE:           { label: 'Expense',     color: 'bg-rose-100 text-rose-700',    Icon: ArrowDownRight, sign: '-', amtColor: 'text-rose-600' },
+  TRANSFER:          { label: 'Transfer',    color: 'bg-blue-100 text-blue-700',    Icon: ArrowLeftRight, sign: '',  amtColor: 'text-blue-600' },
+  LENDING:           { label: 'Money Lent',  color: 'bg-amber-100 text-amber-800',  Icon: HandCoins,      sign: '-', amtColor: 'text-amber-700' },
+  LENDING_REPAYMENT: { label: 'Lend Repaid', color: 'bg-emerald-100 text-emerald-800', Icon: CheckCircle, sign: '+', amtColor: 'text-emerald-600' },
+  CREDIT:            { label: 'Borrowed',    color: 'bg-indigo-100 text-indigo-800', Icon: CreditCard,    sign: '+', amtColor: 'text-indigo-600' },
+  CREDIT_REPAYMENT:  { label: 'Debt Repaid', color: 'bg-purple-100 text-purple-800', Icon: CheckCircle, sign: '-', amtColor: 'text-purple-700' },
 };
 
 const BALANCE_ICON = { CASH: Wallet, BANK: Landmark };
@@ -126,9 +130,7 @@ export default function RecentTransactions({ refreshTrigger }) {
             const cfg = TYPE_CONFIG[tx.transaction_type] || TYPE_CONFIG.EXPENSE;
             const Icon = cfg.Icon;
             const BalIcon = BALANCE_ICON[tx.balance_type] || Wallet;
-            const amtColor =
-              tx.transaction_type === 'ADD_CASH' ? 'text-green-600' :
-              tx.transaction_type === 'EXPENSE'  ? 'text-rose-600'  : 'text-blue-600';
+            const amtColor = cfg.amtColor || 'text-slate-800';
 
             return (
               <div

@@ -66,10 +66,10 @@ export async function fetchFromApi(endpoint, options = {}) {
     const data = isJson ? await response.json() : null;
 
     if (!response.ok) {
-      const errorMsg = data?.detail || 
-                       data?.non_field_errors?.[0] || 
-                       (data && typeof data === 'object' ? Object.entries(data).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(' ') : v}`).join(' | ') : null) || 
-                       `Server returned HTTP ${response.status}: ${response.statusText}`;
+      const errorMsg = data?.detail ||
+        data?.non_field_errors?.[0] ||
+        (data && typeof data === 'object' ? Object.entries(data).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(' ') : v}`).join(' | ') : null) ||
+        `Server returned HTTP ${response.status}: ${response.statusText}`;
       const error = new Error(errorMsg);
       error.status = response.status;
       error.data = data;
@@ -289,4 +289,139 @@ export async function getTransactions(params = {}) {
   );
   const qs = new URLSearchParams(cleanParams).toString();
   return await fetchFromApi(`/transactions/${qs ? `?${qs}` : ''}`);
+}
+
+// ─── Lending Operations (Prompt 05) ──────────────────────────────────────────
+
+/**
+ * List lending records with summary metrics
+ */
+export async function getLendings(params = {}) {
+  const cleanParams = Object.fromEntries(
+    Object.entries(params).filter(([, v]) => v !== '' && v !== null && v !== undefined)
+  );
+  const qs = new URLSearchParams(cleanParams).toString();
+  return await fetchFromApi(`/lending/${qs ? `?${qs}` : ''}`);
+}
+
+/**
+ * Create a new lending record (disburses from Cash or Bank)
+ */
+export async function createLend({ account_id, borrower_name, amount, balance_type, date, note }) {
+  await initCsrfToken();
+  return await fetchFromApi('/lending/', {
+    method: 'POST',
+    body: JSON.stringify({ account_id, borrower_name, amount, balance_type, date, note }),
+  });
+}
+
+/**
+ * Retrieve single lending detail with repayment & adjustment history
+ */
+export async function getLendingDetail(lendingId) {
+  return await fetchFromApi(`/lending/${lendingId}/`);
+}
+
+/**
+ * Update lending non-financial metadata (borrower_name, notes)
+ */
+export async function updateLending(lendingId, { borrower_name, notes }) {
+  await initCsrfToken();
+  return await fetchFromApi(`/lending/${lendingId}/`, {
+    method: 'PATCH',
+    body: JSON.stringify({ borrower_name, notes }),
+  });
+}
+
+/**
+ * Record partial or full repayment for a loan
+ */
+export async function repayLending(lendingId, { amount, balance_type, date, note }) {
+  await initCsrfToken();
+  return await fetchFromApi(`/lending/${lendingId}/repay/`, {
+    method: 'POST',
+    body: JSON.stringify({ amount, balance_type, date, note }),
+  });
+}
+
+/**
+ * Manually adjust outstanding balance (requires reason, does NOT touch Cash/Bank)
+ */
+export async function adjustLending(lendingId, { new_outstanding_amount, reason }) {
+  await initCsrfToken();
+  return await fetchFromApi(`/lending/${lendingId}/adjust/`, {
+    method: 'POST',
+    body: JSON.stringify({ new_outstanding_amount, reason }),
+  });
+}
+
+// ─── Credit Operations (Prompt 05) ───────────────────────────────────────────
+
+/**
+ * List credit records with summary metrics
+ */
+export async function getCredits(params = {}) {
+  const cleanParams = Object.fromEntries(
+    Object.entries(params).filter(([, v]) => v !== '' && v !== null && v !== undefined)
+  );
+  const qs = new URLSearchParams(cleanParams).toString();
+  return await fetchFromApi(`/credit/${qs ? `?${qs}` : ''}`);
+}
+
+/**
+ * Create a new credit liability record
+ */
+export async function createCredit({
+  account_id,
+  creditor_name,
+  amount,
+  credit_date,
+  pay_by_date,
+  description,
+  receive_funds,
+  destination_balance_type,
+}) {
+  await initCsrfToken();
+  return await fetchFromApi('/credit/', {
+    method: 'POST',
+    body: JSON.stringify({
+      account_id,
+      creditor_name,
+      amount,
+      credit_date,
+      pay_by_date: pay_by_date || null,
+      description,
+      receive_funds: !!receive_funds,
+      destination_balance_type: receive_funds ? destination_balance_type : null,
+    }),
+  });
+}
+
+/**
+ * Retrieve single credit detail with repayments
+ */
+export async function getCreditDetail(creditId) {
+  return await fetchFromApi(`/credit/${creditId}/`);
+}
+
+/**
+ * Update credit metadata or due date
+ */
+export async function updateCredit(creditId, { creditor_name, description, pay_by_date, clear_due_date }) {
+  await initCsrfToken();
+  return await fetchFromApi(`/credit/${creditId}/`, {
+    method: 'PATCH',
+    body: JSON.stringify({ creditor_name, description, pay_by_date, clear_due_date }),
+  });
+}
+
+/**
+ * Repay debt from Cash or Bank
+ */
+export async function repayCredit(creditId, { amount, payment_source, date, note }) {
+  await initCsrfToken();
+  return await fetchFromApi(`/credit/${creditId}/repay/`, {
+    method: 'POST',
+    body: JSON.stringify({ amount, payment_source, date, note }),
+  });
 }

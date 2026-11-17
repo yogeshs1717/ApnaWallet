@@ -4,7 +4,7 @@ from django.contrib.auth import login, logout
 from django.contrib.auth.tokens import default_token_generator
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.mail import send_mail
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.middleware.csrf import get_token
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
@@ -15,27 +15,56 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
 
-from .models import Category, FinancialAccount, Transaction, User
+from .models import (
+    Category,
+    CreditRecord,
+    CreditRepayment,
+    FinancialAccount,
+    LendingAdjustment,
+    LendingRecord,
+    LendingRepayment,
+    Transaction,
+    User,
+)
 from .serializers import (
     AddCashSerializer,
     CategorySerializer,
+    CreateCreditSerializer,
+    CreateLendSerializer,
+    CreditRecordSerializer,
+    CreditRepaymentInputSerializer,
+    CreditRepaymentSerializer,
     ExpenseSerializer,
     FinancialAccountSerializer,
+    LendingAdjustmentInputSerializer,
+    LendingAdjustmentSerializer,
+    LendingRecordSerializer,
+    LendingRepaymentInputSerializer,
+    LendingRepaymentSerializer,
     LoginSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
     RegisterSerializer,
     TransactionSerializer,
     TransferSerializer,
+    UpdateCreditMetadataSerializer,
     UpdateExpenseSerializer,
+    UpdateLendingMetadataSerializer,
     UserProfileSerializer,
 )
 from .services import (
     execute_add_cash,
+    execute_create_credit,
+    execute_credit_repayment,
     execute_expense,
+    execute_lend,
+    execute_lending_adjustment,
+    execute_lending_repayment,
     execute_transfer,
     seed_default_categories,
+    update_credit_metadata,
     update_expense,
+    update_lending_metadata,
     void_transaction,
 )
 
@@ -506,3 +535,332 @@ def password_reset_confirm_view(request):
         }, status=status.HTTP_200_OK)
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# -------------------------------------------------------------
+# Lending Endpoints (Prompt 05)
+# -------------------------------------------------------------
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def lending_list_view(request):
+    """
+    GET: List user's lending records with total summary metrics.
+    POST: Create a new lending record and disburse money from Cash or Bank.
+    """
+    if request.method == 'GET':
+        qs = LendingRecord.objects.filter(user=request.user).prefetch_related('repayments', 'adjustments')
+
+        account_id = request.query_params.get('account_id')
+        if account_id:
+            qs = qs.filter(account_id=account_id)
+
+        status_param = request.query_params.get('status')
+        if status_param:
+            qs = qs.filter(status=status_param.upper())
+
+        search = request.query_params.get('search')
+        if search:
+            search = search.strip()
+            qs = qs.filter(Q(borrower_name__icontains=search) | Q(notes__icontains=search))
+
+        totals = qs.aggregate(
+            total_lent=Sum('original_amount'),
+            total_outstanding=Sum('outstanding_amount'),
+            total_repaid=Sum('amount_repaid')
+        )
+
+        return Response({
+            "total_lent": f"{(totals['total_lent'] or Decimal('0.00')):.2f}",
+            "total_outstanding": f"{(totals['total_outstanding'] or Decimal('0.00')):.2f}",
+            "total_repaid": f"{(totals['total_repaid'] or Decimal('0.00')):.2f}",
+            "count": qs.count(),
+            "results": LendingRecordSerializer(qs, many=True).data
+        }, status=status.HTTP_200_OK)
+
+    elif request.method == 'POST':
+        serializer = CreateLendSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        data = serializer.validated_data
+        try:
+            account = resolve_target_account(request.user, data.get('account_id'))
+        except FinancialAccount.DoesNotExist:
+            return Response({"detail": "Target financial account not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            lending, txn, updated_account = execute_lend(
+                account=account,
+                borrower_name=data['borrower_name'],
+                amount=data['amount'],
+                source_balance_type=data['balance_type'],
+                date=data.get('date'),
+                note=data.get('note', '')
+            )
+        except DjangoValidationError as err:
+            msg = err.messages[0] if hasattr(err, 'messages') else str(err)
+            return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({
+            "message": f"Successfully recorded lending of ₹{lending.original_amount} to {lending.borrower_name}.",
+            "lending": LendingRecordSerializer(lending).data,
+            "transaction": TransactionSerializer(txn).data,
+            "account": FinancialAccountSerializer(updated_account).data
+        }, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET', 'PATCH'])
+@permission_classes([IsAuthenticated])
+def lending_detail_view(request, pk):
+    """
+    GET: Retrieve lending record detail with repayment and adjustment history.
+    PATCH: Update borrower name or notes without altering balances.
+    """
+    try:
+        lending = LendingRecord.objects.prefetch_related('repayments', 'adjustments').get(pk=pk, user=request.user)
+    except LendingRecord.DoesNotExist:
+        return Response({"detail": "Lending record not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        return Response(LendingRecordSerializer(lending).data, status=status.HTTP_200_OK)
+
+    elif request.method == 'PATCH':
+        serializer = UpdateLendingMetadataSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        data = serializer.validated_data
+        updated_lending = update_lending_metadata(
+            lending_id=lending.pk,
+            user=request.user,
+            borrower_name=data.get('borrower_name'),
+            notes=data.get('notes')
+        )
+        return Response({
+            "message": "Lending details updated successfully.",
+            "lending": LendingRecordSerializer(updated_lending).data
+        }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def lending_repay_view(request, pk):
+    """
+    Record partial or full repayment for a lending record.
+    Principal recovery is deposited into Cash or Bank and does not count as income.
+    """
+    try:
+        LendingRecord.objects.get(pk=pk, user=request.user)
+    except LendingRecord.DoesNotExist:
+        return Response({"detail": "Lending record not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    serializer = LendingRepaymentInputSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    data = serializer.validated_data
+    try:
+        repayment, lending, txn, updated_account = execute_lending_repayment(
+            lending_id=pk,
+            user=request.user,
+            amount=data['amount'],
+            destination_balance_type=data['balance_type'],
+            repayment_date=data.get('date'),
+            note=data.get('note', '')
+        )
+    except DjangoValidationError as err:
+        msg = err.messages[0] if hasattr(err, 'messages') else str(err)
+        return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
+
+    return Response({
+        "message": f"Repayment of ₹{repayment.amount} recorded successfully. Status: {lending.status}.",
+        "repayment": LendingRepaymentSerializer(repayment).data,
+        "lending": LendingRecordSerializer(lending).data,
+        "transaction": TransactionSerializer(txn).data,
+        "account": FinancialAccountSerializer(updated_account).data
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def lending_adjust_view(request, pk):
+    """
+    Manually adjust remaining outstanding amount with an explicit reason.
+    CRITICAL: Does NOT touch Cash or Bank balance.
+    """
+    try:
+        LendingRecord.objects.get(pk=pk, user=request.user)
+    except LendingRecord.DoesNotExist:
+        return Response({"detail": "Lending record not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    serializer = LendingAdjustmentInputSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    data = serializer.validated_data
+    try:
+        adj, lending = execute_lending_adjustment(
+            lending_id=pk,
+            user=request.user,
+            new_outstanding_amount=data['new_outstanding_amount'],
+            reason=data['reason']
+        )
+    except DjangoValidationError as err:
+        msg = err.messages[0] if hasattr(err, 'messages') else str(err)
+        return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
+
+    return Response({
+        "message": f"Outstanding balance adjusted to ₹{lending.outstanding_amount}.",
+        "adjustment": LendingAdjustmentSerializer(adj).data,
+        "lending": LendingRecordSerializer(lending).data
+    }, status=status.HTTP_200_OK)
+
+
+# -------------------------------------------------------------
+# Credit Endpoints (Prompt 05)
+# -------------------------------------------------------------
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def credit_list_view(request):
+    """
+    GET: List user's credit records with summary metrics.
+    POST: Create a new credit liability (with optional funds received into Cash/Bank).
+    """
+    if request.method == 'GET':
+        qs = CreditRecord.objects.filter(user=request.user).prefetch_related('repayments')
+
+        account_id = request.query_params.get('account_id')
+        if account_id:
+            qs = qs.filter(account_id=account_id)
+
+        status_param = request.query_params.get('status')
+        if status_param:
+            qs = qs.filter(status=status_param.upper())
+
+        search = request.query_params.get('search')
+        if search:
+            search = search.strip()
+            qs = qs.filter(Q(creditor_name__icontains=search) | Q(description__icontains=search))
+
+        totals = qs.aggregate(
+            total_credit=Sum('original_amount'),
+            total_outstanding=Sum('outstanding_amount'),
+            total_repaid=Sum('amount_repaid')
+        )
+
+        return Response({
+            "total_credit": f"{(totals['total_credit'] or Decimal('0.00')):.2f}",
+            "total_outstanding": f"{(totals['total_outstanding'] or Decimal('0.00')):.2f}",
+            "total_repaid": f"{(totals['total_repaid'] or Decimal('0.00')):.2f}",
+            "count": qs.count(),
+            "results": CreditRecordSerializer(qs, many=True).data
+        }, status=status.HTTP_200_OK)
+
+    elif request.method == 'POST':
+        serializer = CreateCreditSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        data = serializer.validated_data
+        try:
+            account = resolve_target_account(request.user, data.get('account_id'))
+        except FinancialAccount.DoesNotExist:
+            return Response({"detail": "Target financial account not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            credit, txn, updated_account = execute_create_credit(
+                account=account,
+                creditor_name=data['creditor_name'],
+                amount=data['amount'],
+                credit_date=data.get('credit_date'),
+                pay_by_date=data.get('pay_by_date'),
+                description=data.get('description', ''),
+                receive_funds=data.get('receive_funds', False),
+                destination_balance_type=data.get('destination_balance_type')
+            )
+        except DjangoValidationError as err:
+            msg = err.messages[0] if hasattr(err, 'messages') else str(err)
+            return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({
+            "message": f"Successfully recorded credit obligation of ₹{credit.original_amount} to {credit.creditor_name}.",
+            "credit": CreditRecordSerializer(credit).data,
+            "transaction": TransactionSerializer(txn).data if txn else None,
+            "account": FinancialAccountSerializer(updated_account).data if updated_account else None
+        }, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET', 'PATCH'])
+@permission_classes([IsAuthenticated])
+def credit_detail_view(request, pk):
+    """
+    GET: Retrieve credit detail with repayment history.
+    PATCH: Update creditor name, description, or optional due date.
+    """
+    try:
+        credit = CreditRecord.objects.prefetch_related('repayments').get(pk=pk, user=request.user)
+    except CreditRecord.DoesNotExist:
+        return Response({"detail": "Credit record not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        return Response(CreditRecordSerializer(credit).data, status=status.HTTP_200_OK)
+
+    elif request.method == 'PATCH':
+        serializer = UpdateCreditMetadataSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        data = serializer.validated_data
+        updated_credit = update_credit_metadata(
+            credit_id=credit.pk,
+            user=request.user,
+            creditor_name=data.get('creditor_name'),
+            description=data.get('description'),
+            pay_by_date=data.get('pay_by_date'),
+            clear_due_date=data.get('clear_due_date', False)
+        )
+        return Response({
+            "message": "Credit details updated successfully.",
+            "credit": CreditRecordSerializer(updated_credit).data
+        }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def credit_repay_view(request, pk):
+    """
+    Deduct money from Cash or Bank and pay down credit debt.
+    Principal debt reduction does NOT count as an ordinary expense.
+    """
+    try:
+        CreditRecord.objects.get(pk=pk, user=request.user)
+    except CreditRecord.DoesNotExist:
+        return Response({"detail": "Credit record not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    serializer = CreditRepaymentInputSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    data = serializer.validated_data
+    try:
+        repayment, credit, txn, updated_account = execute_credit_repayment(
+            credit_id=pk,
+            user=request.user,
+            amount=data['amount'],
+            payment_source=data['payment_source'],
+            repayment_date=data.get('date'),
+            note=data.get('note', '')
+        )
+    except DjangoValidationError as err:
+        msg = err.messages[0] if hasattr(err, 'messages') else str(err)
+        return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
+
+    return Response({
+        "message": f"Repayment of ₹{repayment.amount} recorded to {credit.creditor_name}. Status: {credit.status}.",
+        "repayment": CreditRepaymentSerializer(repayment).data,
+        "credit": CreditRecordSerializer(credit).data,
+        "transaction": TransactionSerializer(txn).data,
+        "account": FinancialAccountSerializer(updated_account).data
+    }, status=status.HTTP_200_OK)

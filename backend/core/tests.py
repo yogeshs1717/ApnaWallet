@@ -3,11 +3,22 @@ from django.contrib.auth.tokens import default_token_generator
 from django.core import mail
 from django.core.cache import cache
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from rest_framework import status
 from rest_framework.test import APITestCase
-from .models import Category, FinancialAccount, Transaction, User
+from .models import (
+    Category,
+    CreditRecord,
+    CreditRepayment,
+    FinancialAccount,
+    LendingAdjustment,
+    LendingRecord,
+    LendingRepayment,
+    Transaction,
+    User,
+)
 
 
 class ApnaWalletSTQATestSuite(APITestCase):
@@ -32,6 +43,8 @@ class ApnaWalletSTQATestSuite(APITestCase):
         self.categories_url = reverse('categories')
         self.pwd_reset_req_url = reverse('password_reset_request')
         self.pwd_reset_confirm_url = reverse('password_reset_confirm')
+        self.lending_url = reverse('lending_list')
+        self.credit_url = reverse('credit_list')
 
         # User 1 (Primary Test User)
         self.user1 = User.objects.create_user(
@@ -516,3 +529,598 @@ class ApnaWalletSTQATestSuite(APITestCase):
         self.user1_account.refresh_from_db()
         self.assertEqual(self.user1_account.cash_balance, Decimal('100.00'))
         self.assertEqual(self.user1_account.bank_balance, Decimal('200.00'))
+
+    # ==========================================================================
+    # PROMPT 05: LENDING TESTS (LEND-01 to LEND-14)
+    # ==========================================================================
+
+    def test_lend_01_create_valid_lending_record(self):
+        """LEND-01: Create a valid lending record"""
+        self.client.force_login(self.user1)
+        self.user1_account.cash_balance = Decimal('1000.00')
+        self.user1_account.save()
+
+        res = self.client.post(self.lending_url, {
+            'borrower_name': 'Rohan Verma',
+            'amount': '500.00',
+            'balance_type': 'CASH',
+            'note': 'Semester fee help'
+        }, format='json')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        data = res.json()
+        self.assertEqual(data['lending']['borrower_name'], 'Rohan Verma')
+        self.assertEqual(data['lending']['original_amount'], '500.00')
+        self.assertEqual(data['lending']['outstanding_amount'], '500.00')
+        self.assertEqual(data['lending']['status'], 'UNPAID')
+
+    def test_lend_02_deduct_lending_amount_from_cash(self):
+        """LEND-02: Deduct lending amount from Cash balance"""
+        self.client.force_login(self.user1)
+        self.user1_account.cash_balance = Decimal('2000.00')
+        self.user1_account.save()
+
+        res = self.client.post(self.lending_url, {
+            'borrower_name': 'Ranjan',
+            'amount': '500.00',
+            'balance_type': 'CASH',
+            'note': 'Emergency loan'
+        }, format='json')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+
+        self.user1_account.refresh_from_db()
+        self.assertEqual(self.user1_account.cash_balance, Decimal('1500.00'))
+
+    def test_lend_03_deduct_lending_amount_from_bank(self):
+        """LEND-03: Deduct lending amount from Bank balance"""
+        self.client.force_login(self.user1)
+        self.user1_account.bank_balance = Decimal('3000.00')
+        self.user1_account.save()
+
+        res = self.client.post(self.lending_url, {
+            'borrower_name': 'Sunita',
+            'amount': '1200.00',
+            'balance_type': 'BANK',
+            'note': 'Online transfer'
+        }, format='json')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+
+        self.user1_account.refresh_from_db()
+        self.assertEqual(self.user1_account.bank_balance, Decimal('1800.00'))
+
+    def test_lend_04_reject_lending_insufficient_funds(self):
+        """LEND-04: Reject lending with insufficient funds"""
+        self.client.force_login(self.user1)
+        self.user1_account.cash_balance = Decimal('200.00')
+        self.user1_account.save()
+
+        res = self.client.post(self.lending_url, {
+            'borrower_name': 'Vikram',
+            'amount': '500.00',
+            'balance_type': 'CASH',
+            'note': 'Too much loan'
+        }, format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+        self.user1_account.refresh_from_db()
+        self.assertEqual(self.user1_account.cash_balance, Decimal('200.00'))
+
+    def test_lend_05_record_partial_repayment(self):
+        """LEND-05: Record a partial repayment (Ranjan owes ₹500, pays ₹300)"""
+        self.client.force_login(self.user1)
+        self.user1_account.cash_balance = Decimal('2000.00')
+        self.user1_account.save()
+
+        # Lend ₹500
+        lend_res = self.client.post(self.lending_url, {
+            'borrower_name': 'Ranjan',
+            'amount': '500.00',
+            'balance_type': 'CASH',
+            'note': 'Trip'
+        }, format='json')
+        lending_id = lend_res.json()['lending']['id']
+
+        # Repay ₹300
+        repay_url = reverse('lending_repay', kwargs={'pk': lending_id})
+        res = self.client.post(repay_url, {
+            'amount': '300.00',
+            'balance_type': 'CASH',
+            'note': 'Ranjan paid ₹300'
+        }, format='json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+        data = res.json()
+        self.assertEqual(data['lending']['outstanding_amount'], '200.00')
+        self.assertEqual(data['lending']['amount_repaid'], '300.00')
+        self.assertEqual(data['lending']['status'], 'PARTIALLY_PAID')
+
+        self.user1_account.refresh_from_db()
+        # Initial 2000 - 500 + 300 = 1800
+        self.assertEqual(self.user1_account.cash_balance, Decimal('1800.00'))
+
+    def test_lend_06_record_full_repayment(self):
+        """LEND-06: Record a full repayment (Status becomes FULLY_PAID, outstanding ₹0)"""
+        self.client.force_login(self.user1)
+        self.user1_account.cash_balance = Decimal('1000.00')
+        self.user1_account.save()
+
+        lend_res = self.client.post(self.lending_url, {
+            'borrower_name': 'Ankit',
+            'amount': '500.00',
+            'balance_type': 'CASH'
+        }, format='json')
+        lending_id = lend_res.json()['lending']['id']
+
+        repay_url = reverse('lending_repay', kwargs={'pk': lending_id})
+        res = self.client.post(repay_url, {
+            'amount': '500.00',
+            'balance_type': 'BANK'
+        }, format='json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+        data = res.json()
+        self.assertEqual(data['lending']['outstanding_amount'], '0.00')
+        self.assertEqual(data['lending']['status'], 'FULLY_PAID')
+
+        self.user1_account.refresh_from_db()
+        self.assertEqual(self.user1_account.bank_balance, Decimal('500.00'))
+
+    def test_lend_07_reject_repayment_exceeding_outstanding(self):
+        """LEND-07: Reject repayment exceeding outstanding amount"""
+        self.client.force_login(self.user1)
+        self.user1_account.cash_balance = Decimal('1000.00')
+        self.user1_account.save()
+
+        lend_res = self.client.post(self.lending_url, {
+            'borrower_name': 'Neha',
+            'amount': '500.00',
+            'balance_type': 'CASH'
+        }, format='json')
+        lending_id = lend_res.json()['lending']['id']
+
+        repay_url = reverse('lending_repay', kwargs={'pk': lending_id})
+        # Try to repay ₹600 on ₹500 debt
+        res = self.client.post(repay_url, {
+            'amount': '600.00',
+            'balance_type': 'CASH'
+        }, format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_lend_08_verify_lending_repayment_not_counted_as_income(self):
+        """LEND-08: Verify lending repayment creates LENDING_REPAYMENT transaction (not ADD_CASH)"""
+        self.client.force_login(self.user1)
+        self.user1_account.cash_balance = Decimal('1000.00')
+        self.user1_account.save()
+
+        lend_res = self.client.post(self.lending_url, {
+            'borrower_name': 'Pooja',
+            'amount': '400.00',
+            'balance_type': 'CASH'
+        }, format='json')
+        lending_id = lend_res.json()['lending']['id']
+
+        repay_url = reverse('lending_repay', kwargs={'pk': lending_id})
+        res = self.client.post(repay_url, {
+            'amount': '400.00',
+            'balance_type': 'CASH'
+        }, format='json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+        txn_data = res.json()['transaction']
+        self.assertEqual(txn_data['transaction_type'], 'LENDING_REPAYMENT')
+        self.assertNotEqual(txn_data['transaction_type'], 'ADD_CASH')
+
+    def test_lend_09_verify_automatic_note_ranjan_paid_300(self):
+        """LEND-09: Verify automatic note 'Ranjan paid ₹300' when note is empty"""
+        self.client.force_login(self.user1)
+        self.user1_account.cash_balance = Decimal('1000.00')
+        self.user1_account.save()
+
+        lend_res = self.client.post(self.lending_url, {
+            'borrower_name': 'Ranjan',
+            'amount': '500.00',
+            'balance_type': 'CASH'
+        }, format='json')
+        lending_id = lend_res.json()['lending']['id']
+
+        repay_url = reverse('lending_repay', kwargs={'pk': lending_id})
+        res = self.client.post(repay_url, {
+            'amount': '300.00',
+            'balance_type': 'CASH',
+            'note': ''
+        }, format='json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.json()['transaction']['note'], 'Ranjan paid ₹300')
+
+    def test_lend_10_edit_borrower_details_without_changing_balances(self):
+        """LEND-10: Edit borrower details without changing balances"""
+        self.client.force_login(self.user1)
+        self.user1_account.cash_balance = Decimal('1000.00')
+        self.user1_account.save()
+
+        lend_res = self.client.post(self.lending_url, {
+            'borrower_name': 'Ranjan',
+            'amount': '500.00',
+            'balance_type': 'CASH'
+        }, format='json')
+        lending_id = lend_res.json()['lending']['id']
+
+        detail_url = reverse('lending_detail', kwargs={'pk': lending_id})
+        res = self.client.patch(detail_url, {
+            'borrower_name': 'Ranjan Sharma',
+            'notes': 'Roommate'
+        }, format='json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.json()['lending']['borrower_name'], 'Ranjan Sharma')
+
+        # Balance remains 1000 - 500 = 500
+        self.user1_account.refresh_from_db()
+        self.assertEqual(self.user1_account.cash_balance, Decimal('500.00'))
+
+    def test_lend_11_adjust_outstanding_amount_without_creating_fake_cash(self):
+        """LEND-11: Adjust outstanding amount without creating fake cash"""
+        self.client.force_login(self.user1)
+        self.user1_account.cash_balance = Decimal('1000.00')
+        self.user1_account.save()
+
+        lend_res = self.client.post(self.lending_url, {
+            'borrower_name': 'Ranjan',
+            'amount': '500.00',
+            'balance_type': 'CASH'
+        }, format='json')
+        lending_id = lend_res.json()['lending']['id']
+
+        adjust_url = reverse('lending_adjust', kwargs={'pk': lending_id})
+        res = self.client.post(adjust_url, {
+            'new_outstanding_amount': '350.00',
+            'reason': 'Settlement discount'
+        }, format='json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.json()['lending']['outstanding_amount'], '350.00')
+
+        # Cash balance was NOT increased by ₹150
+        self.user1_account.refresh_from_db()
+        self.assertEqual(self.user1_account.cash_balance, Decimal('500.00'))
+
+    def test_lend_12_prevent_duplicate_repayments(self):
+        """LEND-12: Prevent duplicate repayments on fully paid loans"""
+        self.client.force_login(self.user1)
+        self.user1_account.cash_balance = Decimal('1000.00')
+        self.user1_account.save()
+
+        lend_res = self.client.post(self.lending_url, {
+            'borrower_name': 'Aman',
+            'amount': '500.00',
+            'balance_type': 'CASH'
+        }, format='json')
+        lending_id = lend_res.json()['lending']['id']
+
+        repay_url = reverse('lending_repay', kwargs={'pk': lending_id})
+        # Full repayment
+        self.client.post(repay_url, {'amount': '500.00', 'balance_type': 'CASH'}, format='json')
+
+        # Attempt duplicate repayment
+        dup_res = self.client.post(repay_url, {'amount': '500.00', 'balance_type': 'CASH'}, format='json')
+        self.assertEqual(dup_res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_lend_13_cross_user_access_denied(self):
+        """LEND-13: Verify cross-user access to lending records is denied"""
+        self.client.force_login(self.user1)
+        self.user1_account.cash_balance = Decimal('1000.00')
+        self.user1_account.save()
+
+        lend_res = self.client.post(self.lending_url, {
+            'borrower_name': 'Private Borrower',
+            'amount': '300.00',
+            'balance_type': 'CASH'
+        }, format='json')
+        lending_id = lend_res.json()['lending']['id']
+
+        # User 2 attempts to access User 1's lending record
+        self.client.force_login(self.user2)
+        detail_url = reverse('lending_detail', kwargs={'pk': lending_id})
+        res = self.client.get(detail_url)
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+
+        repay_url = reverse('lending_repay', kwargs={'pk': lending_id})
+        repay_res = self.client.post(repay_url, {'amount': '100.00', 'balance_type': 'CASH'}, format='json')
+        self.assertEqual(repay_res.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_lend_14_concurrent_repayments_cannot_overpay(self):
+        """LEND-14: Consecutive/concurrent repayments cannot overpay beyond outstanding amount"""
+        self.client.force_login(self.user1)
+        self.user1_account.cash_balance = Decimal('1000.00')
+        self.user1_account.save()
+
+        lend_res = self.client.post(self.lending_url, {
+            'borrower_name': 'Kavita',
+            'amount': '500.00',
+            'balance_type': 'CASH'
+        }, format='json')
+        lending_id = lend_res.json()['lending']['id']
+
+        repay_url = reverse('lending_repay', kwargs={'pk': lending_id})
+        # Repay 300 (200 left)
+        res1 = self.client.post(repay_url, {'amount': '300.00', 'balance_type': 'CASH'}, format='json')
+        self.assertEqual(res1.status_code, status.HTTP_200_OK)
+
+        # Attempting another 300 should fail because only 200 is outstanding
+        res2 = self.client.post(repay_url, {'amount': '300.00', 'balance_type': 'CASH'}, format='json')
+        self.assertEqual(res2.status_code, status.HTTP_400_BAD_REQUEST)
+
+    # ==========================================================================
+    # PROMPT 05: CREDIT TESTS (CREDIT-01 to CREDIT-13)
+    # ==========================================================================
+
+    def test_credit_01_record_existing_debt_without_changing_cash_bank(self):
+        """CREDIT-01: Record an existing debt without changing Cash/Bank"""
+        self.client.force_login(self.user1)
+        self.user1_account.cash_balance = Decimal('1000.00')
+        self.user1_account.bank_balance = Decimal('2000.00')
+        self.user1_account.save()
+
+        res = self.client.post(self.credit_url, {
+            'creditor_name': 'Sharma Ji Store',
+            'amount': '5000.00',
+            'description': 'Grocery tab',
+            'receive_funds': False
+        }, format='json')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        data = res.json()
+        self.assertEqual(data['credit']['creditor_name'], 'Sharma Ji Store')
+        self.assertEqual(data['credit']['outstanding_amount'], '5000.00')
+        self.assertFalse(data['credit']['funds_received'])
+
+        # Verify Cash and Bank are untouched
+        self.user1_account.refresh_from_db()
+        self.assertEqual(self.user1_account.cash_balance, Decimal('1000.00'))
+        self.assertEqual(self.user1_account.bank_balance, Decimal('2000.00'))
+
+    def test_credit_02_record_borrowed_funds_received_into_cash(self):
+        """CREDIT-02: Record borrowed funds received into Cash"""
+        self.client.force_login(self.user1)
+        self.user1_account.cash_balance = Decimal('500.00')
+        self.user1_account.save()
+
+        res = self.client.post(self.credit_url, {
+            'creditor_name': 'HDFC Personal Loan',
+            'amount': '1000.00',
+            'description': 'Quick cash loan',
+            'receive_funds': True,
+            'destination_balance_type': 'CASH'
+        }, format='json')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+
+        self.user1_account.refresh_from_db()
+        # 500 + 1000 = 1500
+        self.assertEqual(self.user1_account.cash_balance, Decimal('1500.00'))
+
+    def test_credit_03_verify_borrowed_funds_not_counted_as_income(self):
+        """CREDIT-03: Verify borrowed funds create CREDIT transaction (not ADD_CASH)"""
+        self.client.force_login(self.user1)
+        res = self.client.post(self.credit_url, {
+            'creditor_name': 'Manoj Friend',
+            'amount': '800.00',
+            'receive_funds': True,
+            'destination_balance_type': 'CASH'
+        }, format='json')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+
+        txn_data = res.json()['transaction']
+        self.assertEqual(txn_data['transaction_type'], 'CREDIT')
+        self.assertNotEqual(txn_data['transaction_type'], 'ADD_CASH')
+
+    def test_credit_04_record_partial_credit_repayment(self):
+        """CREDIT-04: Record partial credit repayment (debt ₹1000, repay ₹400)"""
+        self.client.force_login(self.user1)
+        self.user1_account.cash_balance = Decimal('2000.00')
+        self.user1_account.save()
+
+        credit_res = self.client.post(self.credit_url, {
+            'creditor_name': 'Deepak',
+            'amount': '1000.00'
+        }, format='json')
+        credit_id = credit_res.json()['credit']['id']
+
+        repay_url = reverse('credit_repay', kwargs={'pk': credit_id})
+        res = self.client.post(repay_url, {
+            'amount': '400.00',
+            'payment_source': 'CASH'
+        }, format='json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+        data = res.json()
+        self.assertEqual(data['credit']['outstanding_amount'], '600.00')
+        self.assertEqual(data['credit']['amount_repaid'], '400.00')
+        self.assertEqual(data['credit']['status'], 'PARTIALLY_PAID')
+
+        self.user1_account.refresh_from_db()
+        # 2000 - 400 = 1600
+        self.assertEqual(self.user1_account.cash_balance, Decimal('1600.00'))
+
+    def test_credit_05_record_full_credit_repayment(self):
+        """CREDIT-05: Record full credit repayment (status becomes FULLY_PAID)"""
+        self.client.force_login(self.user1)
+        self.user1_account.cash_balance = Decimal('2000.00')
+        self.user1_account.save()
+
+        credit_res = self.client.post(self.credit_url, {
+            'creditor_name': 'Aarav Shop',
+            'amount': '1000.00'
+        }, format='json')
+        credit_id = credit_res.json()['credit']['id']
+
+        repay_url = reverse('credit_repay', kwargs={'pk': credit_id})
+        res = self.client.post(repay_url, {
+            'amount': '1000.00',
+            'payment_source': 'CASH'
+        }, format='json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+        data = res.json()
+        self.assertEqual(data['credit']['outstanding_amount'], '0.00')
+        self.assertEqual(data['credit']['status'], 'FULLY_PAID')
+
+        self.user1_account.refresh_from_db()
+        self.assertEqual(self.user1_account.cash_balance, Decimal('1000.00'))
+
+    def test_credit_06_reject_credit_repayment_insufficient_funds(self):
+        """CREDIT-06: Reject credit repayment with insufficient funds"""
+        self.client.force_login(self.user1)
+        self.user1_account.cash_balance = Decimal('200.00')
+        self.user1_account.save()
+
+        credit_res = self.client.post(self.credit_url, {
+            'creditor_name': 'Anand',
+            'amount': '1000.00'
+        }, format='json')
+        credit_id = credit_res.json()['credit']['id']
+
+        repay_url = reverse('credit_repay', kwargs={'pk': credit_id})
+        # Try to pay ₹500 when Cash is only ₹200
+        res = self.client.post(repay_url, {
+            'amount': '500.00',
+            'payment_source': 'CASH'
+        }, format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+        self.user1_account.refresh_from_db()
+        self.assertEqual(self.user1_account.cash_balance, Decimal('200.00'))
+
+    def test_credit_07_reject_credit_overpayment(self):
+        """CREDIT-07: Reject credit overpayment beyond outstanding balance"""
+        self.client.force_login(self.user1)
+        self.user1_account.cash_balance = Decimal('2000.00')
+        self.user1_account.save()
+
+        credit_res = self.client.post(self.credit_url, {
+            'creditor_name': 'Prashant',
+            'amount': '400.00'
+        }, format='json')
+        credit_id = credit_res.json()['credit']['id']
+
+        repay_url = reverse('credit_repay', kwargs={'pk': credit_id})
+        # Try to pay ₹500 on ₹400 debt
+        res = self.client.post(repay_url, {
+            'amount': '500.00',
+            'payment_source': 'CASH'
+        }, format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_credit_08_verify_principal_repayment_not_counted_as_expense(self):
+        """CREDIT-08: Verify principal repayment creates CREDIT_REPAYMENT transaction (not EXPENSE)"""
+        self.client.force_login(self.user1)
+        self.user1_account.cash_balance = Decimal('2000.00')
+        self.user1_account.save()
+
+        credit_res = self.client.post(self.credit_url, {
+            'creditor_name': 'Kunal',
+            'amount': '300.00'
+        }, format='json')
+        credit_id = credit_res.json()['credit']['id']
+
+        repay_url = reverse('credit_repay', kwargs={'pk': credit_id})
+        res = self.client.post(repay_url, {
+            'amount': '300.00',
+            'payment_source': 'CASH'
+        }, format='json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+        txn_data = res.json()['transaction']
+        self.assertEqual(txn_data['transaction_type'], 'CREDIT_REPAYMENT')
+        self.assertNotEqual(txn_data['transaction_type'], 'EXPENSE')
+
+    def test_credit_09_verify_optional_pay_by_date(self):
+        """CREDIT-09: Verify optional Pay By Date and overdue detection"""
+        self.client.force_login(self.user1)
+
+        # No due date -> is_overdue False
+        res1 = self.client.post(self.credit_url, {
+            'creditor_name': 'No Due Creditor',
+            'amount': '500.00'
+        }, format='json')
+        self.assertFalse(res1.json()['credit']['is_overdue'])
+        self.assertIsNone(res1.json()['credit']['pay_by_date'])
+
+        # Past due date -> is_overdue True
+        yesterday = (timezone.now() - timezone.timedelta(days=1)).date().isoformat()
+        res2 = self.client.post(self.credit_url, {
+            'creditor_name': 'Past Due Creditor',
+            'amount': '500.00',
+            'pay_by_date': yesterday
+        }, format='json')
+        self.assertTrue(res2.json()['credit']['is_overdue'])
+
+    def test_credit_10_verify_due_date_can_be_updated(self):
+        """CREDIT-10: Verify due date can be added or updated via PATCH"""
+        self.client.force_login(self.user1)
+        credit_res = self.client.post(self.credit_url, {
+            'creditor_name': 'Rakesh',
+            'amount': '1500.00'
+        }, format='json')
+        credit_id = credit_res.json()['credit']['id']
+
+        detail_url = reverse('credit_detail', kwargs={'pk': credit_id})
+        future_date = (timezone.now() + timezone.timedelta(days=30)).date().isoformat()
+        patch_res = self.client.patch(detail_url, {
+            'pay_by_date': future_date
+        }, format='json')
+        self.assertEqual(patch_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(patch_res.json()['credit']['pay_by_date'], future_date)
+
+    def test_credit_11_cross_user_access_denied(self):
+        """CREDIT-11: Verify cross-user access to credit records is denied"""
+        self.client.force_login(self.user1)
+        credit_res = self.client.post(self.credit_url, {
+            'creditor_name': 'Private Creditor',
+            'amount': '700.00'
+        }, format='json')
+        credit_id = credit_res.json()['credit']['id']
+
+        # User 2 tries to access User 1's credit
+        self.client.force_login(self.user2)
+        detail_url = reverse('credit_detail', kwargs={'pk': credit_id})
+        res = self.client.get(detail_url)
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+
+        repay_url = reverse('credit_repay', kwargs={'pk': credit_id})
+        repay_res = self.client.post(repay_url, {'amount': '100.00', 'payment_source': 'CASH'}, format='json')
+        self.assertEqual(repay_res.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_credit_12_transaction_rollback_on_failed_repayment(self):
+        """CREDIT-12: Transaction rolls back on failed repayment (balance unchanged)"""
+        self.client.force_login(self.user1)
+        self.user1_account.cash_balance = Decimal('100.00')
+        self.user1_account.save()
+
+        credit_res = self.client.post(self.credit_url, {
+            'creditor_name': 'Creditor X',
+            'amount': '500.00'
+        }, format='json')
+        credit_id = credit_res.json()['credit']['id']
+
+        repay_url = reverse('credit_repay', kwargs={'pk': credit_id})
+        # Fails due to insufficient cash (₹100 available, ₹200 requested)
+        res = self.client.post(repay_url, {'amount': '200.00', 'payment_source': 'CASH'}, format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+        self.user1_account.refresh_from_db()
+        self.assertEqual(self.user1_account.cash_balance, Decimal('100.00'))
+
+    def test_credit_13_duplicate_repayment_protection(self):
+        """CREDIT-13: Duplicate repayment on fully paid credit is rejected"""
+        self.client.force_login(self.user1)
+        self.user1_account.cash_balance = Decimal('2000.00')
+        self.user1_account.save()
+
+        credit_res = self.client.post(self.credit_url, {
+            'creditor_name': 'Creditor Y',
+            'amount': '500.00'
+        }, format='json')
+        credit_id = credit_res.json()['credit']['id']
+
+        repay_url = reverse('credit_repay', kwargs={'pk': credit_id})
+        self.client.post(repay_url, {'amount': '500.00', 'payment_source': 'CASH'}, format='json')
+
+        # Second attempt
+        dup_res = self.client.post(repay_url, {'amount': '500.00', 'payment_source': 'CASH'}, format='json')
+        self.assertEqual(dup_res.status_code, status.HTTP_400_BAD_REQUEST)

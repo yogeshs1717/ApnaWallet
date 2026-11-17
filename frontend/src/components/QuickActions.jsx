@@ -1,17 +1,19 @@
 /**
  * QuickActions.jsx
- * Prompt 04 — Milestone 4/5/6: Wire Add Cash, Expense, Transfer modals
+ * Prompt 05 — Milestone 3, 6, 10: Wire Lend and Credit quick actions
  */
 import React, { useState } from 'react';
-import { PlusCircle, ArrowDownRight, HandCoins, CreditCard, ArrowLeftRight, Construction } from 'lucide-react';
+import { PlusCircle, ArrowDownRight, HandCoins, CreditCard, ArrowLeftRight, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import AddCashModal from './transactions/AddCashModal';
 import ExpenseModal from './transactions/ExpenseModal';
 import TransferModal from './transactions/TransferModal';
+import LendModal from './transactions/LendModal';
+import CreditModal from './transactions/CreditModal';
 
 export default function QuickActions({ onTransactionSuccess }) {
   const { selectedAccount, refreshUserData, isAuthenticated, setAuthView } = useAuth();
-  const [activeModal, setActiveModal] = useState(null); // 'add-cash' | 'expense' | 'transfer' | null
+  const [activeModal, setActiveModal] = useState(null); // 'add-cash' | 'expense' | 'transfer' | 'lend' | 'credit' | null
 
   const actions = [
     {
@@ -40,21 +42,19 @@ export default function QuickActions({ onTransactionSuccess }) {
       label: 'Lend',
       icon: HandCoins,
       bgColor: 'bg-amber-50 text-amber-700 border-amber-100',
-      live: false,
-      prompt: '05',
+      live: true, // PROMPT 05 LIVE
     },
     {
       id: 'credit',
       label: 'Credit',
       icon: CreditCard,
       bgColor: 'bg-blue-50 text-blue-600 border-blue-100',
-      live: false,
-      prompt: '05',
+      live: true, // PROMPT 05 LIVE
     },
   ];
 
   function handleClick(action) {
-    if (!action.live) return; // future prompts — button is visually disabled
+    if (!action.live) return;
     if (!isAuthenticated) {
       setAuthView('login');
       return;
@@ -63,11 +63,9 @@ export default function QuickActions({ onTransactionSuccess }) {
   }
 
   // Called when a modal reports success; refreshes live balances in AuthContext
-  async function handleSuccess(updatedAccount, _transaction) {
-    // refreshUserData re-fetches /auth/me/ and /api/accounts/ so balances update everywhere
+  async function handleSuccess(updatedAccount, _record) {
     await refreshUserData();
     setActiveModal(null);
-    // Also tell Dashboard to refresh RecentTransactions
     if (onTransactionSuccess) onTransactionSuccess();
   }
 
@@ -110,12 +108,6 @@ export default function QuickActions({ onTransactionSuccess }) {
             );
           })}
         </div>
-
-        {/* Coming-soon note */}
-        <p className="text-[11px] text-slate-400 text-center">
-          <Construction className="inline w-3 h-3 mr-1" />
-          Lend &amp; Credit available in Prompt 05 — Lending &amp; Credit Management.
-        </p>
       </div>
 
       {/* ── Modals ─────────────────────────────────────────────────── */}
@@ -140,6 +132,22 @@ export default function QuickActions({ onTransactionSuccess }) {
           accountId={selectedAccount.id}
           cashBalance={selectedAccount.cash_balance}
           bankBalance={selectedAccount.bank_balance}
+          onSuccess={handleSuccess}
+          onClose={() => setActiveModal(null)}
+        />
+      )}
+
+      {activeModal === 'lend' && selectedAccount && (
+        <LendModal
+          accountId={selectedAccount.id}
+          onSuccess={handleSuccess}
+          onClose={() => setActiveModal(null)}
+        />
+      )}
+
+      {activeModal === 'credit' && selectedAccount && (
+        <CreditModal
+          accountId={selectedAccount.id}
           onSuccess={handleSuccess}
           onClose={() => setActiveModal(null)}
         />

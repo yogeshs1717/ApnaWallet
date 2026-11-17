@@ -4,10 +4,17 @@ from .views import (
     add_cash_view,
     categories_view,
     category_delete_view,
+    credit_detail_view,
+    credit_list_view,
+    credit_repay_view,
     csrf_token_view,
     expense_view,
     financial_accounts_view,
     health_check,
+    lending_adjust_view,
+    lending_detail_view,
+    lending_list_view,
+    lending_repay_view,
     login_view,
     logout_view,
     password_reset_confirm_view,
@@ -44,6 +51,17 @@ urlpatterns = [
     path('transactions/add-cash/', add_cash_view, name='add_cash'),
     path('transactions/expense/', expense_view, name='expense'),
     path('transactions/transfer/', transfer_view, name='transfer'),
+
+    # Lending (Prompt 05)
+    path('lending/', lending_list_view, name='lending_list'),
+    path('lending/<uuid:pk>/', lending_detail_view, name='lending_detail'),
+    path('lending/<uuid:pk>/repay/', lending_repay_view, name='lending_repay'),
+    path('lending/<uuid:pk>/adjust/', lending_adjust_view, name='lending_adjust'),
+
+    # Credit (Prompt 05)
+    path('credit/', credit_list_view, name='credit_list'),
+    path('credit/<uuid:pk>/', credit_detail_view, name='credit_detail'),
+    path('credit/<uuid:pk>/repay/', credit_repay_view, name='credit_repay'),
 
     # Password Recovery
     path('auth/password-reset/', password_reset_request_view, name='password_reset_request'),

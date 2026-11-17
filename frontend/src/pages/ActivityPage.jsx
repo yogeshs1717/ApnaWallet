@@ -16,7 +16,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Search, SlidersHorizontal, X, PlusCircle, ArrowDownRight, ArrowLeftRight,
   Wallet, Landmark, Loader2, RefreshCw, ChevronLeft, ChevronRight,
-  Pencil, Trash2, AlertCircle, CheckCircle,
+  Pencil, Trash2, AlertCircle, CheckCircle, HandCoins, CreditCard
 } from 'lucide-react';
 import { getTransactions, getCategories, voidTransaction } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -26,9 +26,13 @@ import AddCashModal from '../components/transactions/AddCashModal';
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const TYPE_CONFIG = {
-  ADD_CASH: { label: 'Cash In',  color: 'bg-green-100 text-green-700', Icon: PlusCircle,     sign: '+', amtColor: 'text-green-600' },
-  EXPENSE:  { label: 'Expense',  color: 'bg-rose-100  text-rose-700',  Icon: ArrowDownRight, sign: '-', amtColor: 'text-rose-600'  },
-  TRANSFER: { label: 'Transfer', color: 'bg-blue-100  text-blue-700',  Icon: ArrowLeftRight, sign: '',  amtColor: 'text-blue-600'  },
+  ADD_CASH:          { label: 'Cash In',     color: 'bg-green-100 text-green-700',   Icon: PlusCircle,     sign: '+', amtColor: 'text-green-600' },
+  EXPENSE:           { label: 'Expense',     color: 'bg-rose-100 text-rose-700',     Icon: ArrowDownRight, sign: '-', amtColor: 'text-rose-600'  },
+  TRANSFER:          { label: 'Transfer',    color: 'bg-blue-100 text-blue-700',     Icon: ArrowLeftRight, sign: '',  amtColor: 'text-blue-600'  },
+  LENDING:           { label: 'Money Lent',  color: 'bg-amber-100 text-amber-800',   Icon: HandCoins,      sign: '-', amtColor: 'text-amber-700' },
+  LENDING_REPAYMENT: { label: 'Lend Repaid', color: 'bg-emerald-100 text-emerald-800', Icon: CheckCircle, sign: '+', amtColor: 'text-emerald-600' },
+  CREDIT:            { label: 'Borrowed',    color: 'bg-indigo-100 text-indigo-800', Icon: CreditCard,    sign: '+', amtColor: 'text-indigo-600' },
+  CREDIT_REPAYMENT:  { label: 'Debt Repaid', color: 'bg-purple-100 text-purple-800', Icon: CheckCircle,   sign: '-', amtColor: 'text-purple-700' },
 };
 const BAL_ICON = { CASH: Wallet, BANK: Landmark };
 const PAGE_SIZE = 15;
@@ -236,6 +240,10 @@ export default function ActivityPage() {
               <option value="ADD_CASH">Cash In</option>
               <option value="EXPENSE">Expense</option>
               <option value="TRANSFER">Transfer</option>
+              <option value="LENDING">Money Lent</option>
+              <option value="LENDING_REPAYMENT">Lend Repaid</option>
+              <option value="CREDIT">Borrowed / Credit</option>
+              <option value="CREDIT_REPAYMENT">Debt Repaid</option>
             </select>
 
             {/* Balance type */}

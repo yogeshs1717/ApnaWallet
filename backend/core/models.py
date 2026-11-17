@@ -202,3 +202,251 @@ class Transaction(models.Model):
 
     def __str__(self):
         return f"{self.transaction_type} ₹{self.amount} - {self.note}"
+
+
+class LendingStatus(models.TextChoices):
+    UNPAID = 'UNPAID', 'Unpaid'
+    PARTIALLY_PAID = 'PARTIALLY_PAID', 'Partially Paid'
+    FULLY_PAID = 'FULLY_PAID', 'Fully Paid'
+
+
+class LendingRecord(models.Model):
+    """
+    Lending Record tracking money lent to other individuals (receivable asset).
+    Disbursement decreases Cash or Bank balance and creates an asset.
+    Repayments restore Cash or Bank balance without counting as income.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='lendings',
+        db_index=True
+    )
+    account = models.ForeignKey(
+        FinancialAccount,
+        on_delete=models.CASCADE,
+        related_name='lendings',
+        db_index=True
+    )
+    borrower_name = models.CharField(max_length=120, db_index=True)
+    original_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.01'))]
+    )
+    outstanding_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.00'))]
+    )
+    amount_repaid = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        validators=[MinValueValidator(Decimal('0.00'))]
+    )
+    lending_date = models.DateField(default=timezone.now)
+    notes = models.CharField(max_length=255, blank=True, default='')
+    status = models.CharField(
+        max_length=20,
+        choices=LendingStatus.choices,
+        default=LendingStatus.UNPAID,
+        db_index=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-lending_date', '-created_at']
+
+    def __str__(self):
+        return f"Lent to {self.borrower_name}: ₹{self.outstanding_amount} remaining of ₹{self.original_amount}"
+
+
+class LendingRepayment(models.Model):
+    """
+    Repayment event for a LendingRecord.
+    Tracks each partial or full repayment instance.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    lending = models.ForeignKey(
+        LendingRecord,
+        on_delete=models.CASCADE,
+        related_name='repayments',
+        db_index=True
+    )
+    amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.01'))]
+    )
+    balance_type = models.CharField(
+        max_length=8,
+        choices=Transaction.BalanceType.choices,
+        help_text="Target balance (Cash or Bank) receiving the repayment"
+    )
+    repayment_date = models.DateField(default=timezone.now)
+    note = models.CharField(max_length=255, blank=True, default='')
+    transaction = models.ForeignKey(
+        Transaction,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='lending_repayments'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-repayment_date', '-created_at']
+
+    def __str__(self):
+        return f"Repayment of ₹{self.amount} for {self.lending.borrower_name}"
+
+
+class LendingAdjustment(models.Model):
+    """
+    Financial adjustment on a LendingRecord (e.g. debt reduction, settlement, correction).
+    Never creates or destroys Cash/Bank balances — only modifies receivables.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    lending = models.ForeignKey(
+        LendingRecord,
+        on_delete=models.CASCADE,
+        related_name='adjustments',
+        db_index=True
+    )
+    adjustment_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        help_text="Net change to outstanding amount (negative for reduction/forgiveness)"
+    )
+    reason = models.CharField(max_length=255)
+    previous_outstanding = models.DecimalField(max_digits=12, decimal_places=2)
+    new_outstanding = models.DecimalField(max_digits=12, decimal_places=2)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Adjustment ₹{self.adjustment_amount} on {self.lending.borrower_name}: {self.reason}"
+
+
+class CreditStatus(models.TextChoices):
+    UNPAID = 'UNPAID', 'Unpaid'
+    PARTIALLY_PAID = 'PARTIALLY_PAID', 'Partially Paid'
+    FULLY_PAID = 'FULLY_PAID', 'Fully Paid'
+
+
+class CreditRecord(models.Model):
+    """
+    Credit Record tracking money owed to creditors (liability).
+    Supports:
+      A. Recording existing liability without changing Cash/Bank.
+      B. Receiving borrowed money into Cash or Bank (creates liability + increases balance).
+    Repayments reduce Cash/Bank and extinguish the liability (not an expense).
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='credits',
+        db_index=True
+    )
+    account = models.ForeignKey(
+        FinancialAccount,
+        on_delete=models.CASCADE,
+        related_name='credits',
+        db_index=True
+    )
+    creditor_name = models.CharField(max_length=120, db_index=True)
+    original_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.01'))]
+    )
+    outstanding_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.00'))]
+    )
+    amount_repaid = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        validators=[MinValueValidator(Decimal('0.00'))]
+    )
+    credit_date = models.DateField(default=timezone.now)
+    pay_by_date = models.DateField(null=True, blank=True, db_index=True)
+    description = models.CharField(max_length=255, blank=True, default='')
+    funds_received = models.BooleanField(
+        default=False,
+        help_text="True if borrowed money was deposited into Cash or Bank"
+    )
+    received_balance_type = models.CharField(
+        max_length=8,
+        choices=Transaction.BalanceType.choices,
+        null=True,
+        blank=True
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=CreditStatus.choices,
+        default=CreditStatus.UNPAID,
+        db_index=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-credit_date', '-created_at']
+
+    @property
+    def is_overdue(self):
+        if self.pay_by_date and self.outstanding_amount > Decimal('0.00'):
+            return self.pay_by_date < timezone.now().date()
+        return False
+
+    def __str__(self):
+        return f"Owed to {self.creditor_name}: ₹{self.outstanding_amount} remaining of ₹{self.original_amount}"
+
+
+class CreditRepayment(models.Model):
+    """
+    Repayment event for a CreditRecord.
+    Deducts money from Cash or Bank and reduces liability.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    credit = models.ForeignKey(
+        CreditRecord,
+        on_delete=models.CASCADE,
+        related_name='repayments',
+        db_index=True
+    )
+    amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.01'))]
+    )
+    payment_source = models.CharField(
+        max_length=8,
+        choices=Transaction.BalanceType.choices,
+        help_text="Source balance (Cash or Bank) from which repayment was paid"
+    )
+    repayment_date = models.DateField(default=timezone.now)
+    note = models.CharField(max_length=255, blank=True, default='')
+    transaction = models.ForeignKey(
+        Transaction,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='credit_repayments'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-repayment_date', '-created_at']
+
+    def __str__(self):
+        return f"Repayment of ₹{self.amount} to {self.credit.creditor_name}"

@@ -3,6 +3,8 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import AppLayout from './components/AppLayout';
 import Dashboard from './components/Dashboard';
 import ActivityPage from './pages/ActivityPage';
+import LendingPage from './pages/LendingPage';
+import CreditPage from './pages/CreditPage';
 import PlaceholderView from './pages/PlaceholderView';
 import AuthModal from './components/auth/AuthModal';
 
@@ -28,8 +30,10 @@ function MainApp() {
   return (
     <>
       <AppLayout activeTab={activeTab} onSelectTab={setActiveTab}>
-        {activeTab === 'home'     ? <Dashboard /> :
+        {activeTab === 'home'     ? <Dashboard onNavigateTab={setActiveTab} /> :
          activeTab === 'activity' ? <ActivityPage /> :
+         activeTab === 'lending'  ? <LendingPage /> :
+         activeTab === 'credit'   ? <CreditPage /> :
                                     <PlaceholderView section={activeTab} />}
       </AppLayout>
 
