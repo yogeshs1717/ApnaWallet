@@ -7,6 +7,7 @@ import LendingPage from './pages/LendingPage';
 import CreditPage from './pages/CreditPage';
 import PlaceholderView from './pages/PlaceholderView';
 import PortfolioPage from './pages/PortfolioPage';
+import BudgetsPage from './pages/BudgetsPage';
 import AuthModal from './components/auth/AuthModal';
 
 function MainApp() {
@@ -36,6 +37,7 @@ function MainApp() {
          activeTab === 'lending'  ? <LendingPage /> :
          activeTab === 'credit'   ? <CreditPage /> :
          activeTab === 'portfolio' ? <PortfolioPage /> :
+         activeTab === 'reports' ? <BudgetsPage /> :
                                     <PlaceholderView section={activeTab} />}
       </AppLayout>
 

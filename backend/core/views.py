@@ -1,13 +1,16 @@
 from decimal import Decimal
+from datetime import datetime, timedelta
 from django.conf import settings
 from django.contrib.auth import login, logout
 from django.contrib.auth.tokens import default_token_generator
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.mail import send_mail
+from django.db import IntegrityError
 from django.db.models import Q, Sum
 from django.middleware.csrf import get_token
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
+from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
@@ -27,6 +30,8 @@ from .models import (
     User,
     Investment,
     SavingsGoal,
+    MonthlyBudget,
+    RecurringExpenseTemplate,
 )
 from .serializers import (
     AddCashSerializer,
@@ -58,6 +63,9 @@ from .serializers import (
     SavingsGoalSerializer,
     SavingsDepositSerializer,
     SavingsWithdrawalSerializer,
+    MonthlyBudgetSerializer,
+    RecurringExpenseSerializer,
+    RecurringExpenseOccurrenceSerializer,
 )
 from .services import (
     execute_add_cash,
@@ -79,6 +87,7 @@ from .services import (
     execute_savings_deposit,
     execute_savings_goal,
     execute_savings_withdrawal,
+    execute_record_recurring_expense,
 )
 
 
@@ -975,3 +984,191 @@ def investment_detail_view(request, pk):
         return Response({'detail': err.messages[0] if hasattr(err, 'messages') else str(err)}, status=status.HTTP_400_BAD_REQUEST)
     return Response({'sale': InvestmentSaleSerializer(sale).data, 'investment': InvestmentSerializer(investment).data,
                      'account': FinancialAccountSerializer(account).data, 'transaction': TransactionSerializer(txn).data})
+
+
+def _budget_month(value):
+    try:
+        parsed = datetime.strptime(value, '%Y-%m').date()
+        return parsed.replace(day=1)
+    except (TypeError, ValueError):
+        raise DjangoValidationError("Month must use YYYY-MM format.")
+
+
+def _budget_spent(budget):
+    filters = {
+        'account_id': budget.account_id,
+        'transaction_type': Transaction.TransactionType.EXPENSE,
+        'is_voided': False,
+        'date__gte': budget.month,
+    }
+    next_month = (budget.month.replace(day=28) + timedelta(days=4)).replace(day=1)
+    filters['date__lt'] = next_month
+    if budget.category_id:
+        filters['category_id'] = budget.category_id
+    return Transaction.objects.filter(**filters).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+
+
+def _budget_data(budget):
+    spent = _budget_spent(budget)
+    usage = (spent / budget.amount * Decimal('100.00')) if budget.amount else Decimal('0.00')
+    data = MonthlyBudgetSerializer(budget).data
+    data.update({
+        'spent': f'{spent:.2f}',
+        'remaining': f'{(budget.amount - spent):.2f}',
+        'usage_percentage': f'{usage:.2f}',
+        'warning': spent >= budget.amount,
+    })
+    return data
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def budgets_view(request):
+    if request.method == 'GET':
+        try:
+            month = _budget_month(request.query_params.get('month') or timezone.now().date().strftime('%Y-%m'))
+            account = resolve_target_account(request.user, request.query_params.get('account_id'))
+        except (DjangoValidationError, FinancialAccount.DoesNotExist) as err:
+            return Response({'detail': err.messages[0] if hasattr(err, 'messages') else str(err)}, status=status.HTTP_400_BAD_REQUEST)
+        budgets = MonthlyBudget.objects.filter(user=request.user, account=account, month=month, is_active=True).select_related('category')
+        total_spent = Transaction.objects.filter(
+            account=account, transaction_type=Transaction.TransactionType.EXPENSE,
+            is_voided=False, date__gte=month,
+            date__lt=(month.replace(day=28) + timedelta(days=4)).replace(day=1)
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        overall = budgets.filter(category__isnull=True).first()
+        return Response({
+            'month': month.isoformat(),
+            'account_id': str(account.id),
+            'total_spent': f'{total_spent:.2f}',
+            'overall': _budget_data(overall) if overall else None,
+            'budgets': [_budget_data(budget) for budget in budgets],
+        })
+
+    serializer = MonthlyBudgetSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    data = serializer.validated_data
+    try:
+        account = resolve_target_account(request.user, request.data.get('account_id'))
+        month = data['month'].replace(day=1)
+        category = data.get('category')
+        if category and not (category.user_id is None or category.user_id == request.user.id):
+            raise DjangoValidationError("Category does not belong to this user.")
+        if MonthlyBudget.objects.filter(account=account, month=month, category=category, is_active=True).exists():
+            raise DjangoValidationError("An active budget already exists for this account, month, and category scope.")
+        budget = MonthlyBudget.objects.create(user=request.user, account=account, month=month, category=category, amount=data['amount'])
+    except (DjangoValidationError, FinancialAccount.DoesNotExist, IntegrityError) as err:
+        return Response({'detail': err.messages[0] if hasattr(err, 'messages') else 'Duplicate active budget scope.'}, status=status.HTTP_400_BAD_REQUEST)
+    return Response(_budget_data(budget), status=status.HTTP_201_CREATED)
+
+
+@api_view(['PATCH', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def budget_detail_view(request, pk):
+    try:
+        budget = MonthlyBudget.objects.get(pk=pk, user=request.user)
+    except MonthlyBudget.DoesNotExist:
+        return Response({'detail': 'Budget not found.'}, status=status.HTTP_404_NOT_FOUND)
+    if request.method == 'DELETE':
+        budget.delete()
+        return Response({'message': 'Budget deleted.'})
+    serializer = MonthlyBudgetSerializer(budget, data=request.data, partial=True)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    data = serializer.validated_data
+    month = data.get('month', budget.month).replace(day=1)
+    category = data.get('category', budget.category)
+    if category and not (category.user_id is None or category.user_id == request.user.id):
+        return Response({'detail': 'Category does not belong to this user.'}, status=status.HTTP_400_BAD_REQUEST)
+    if data.get('is_active', budget.is_active) and MonthlyBudget.objects.filter(
+        account=budget.account, month=month, category=category, is_active=True
+    ).exclude(pk=budget.pk).exists():
+        return Response({'detail': 'An active budget already exists for this account, month, and category scope.'}, status=status.HTTP_400_BAD_REQUEST)
+    for field in ['month', 'category', 'amount', 'is_active']:
+        if field in data:
+            setattr(budget, field, month if field == 'month' else data[field])
+    budget.save()
+    return Response(_budget_data(budget))
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def recurring_expenses_view(request):
+    if request.method == 'GET':
+        templates = RecurringExpenseTemplate.objects.filter(
+            user=request.user, deleted_at__isnull=True
+        ).select_related('category').prefetch_related('occurrences')
+        account_id = request.query_params.get('account_id')
+        if account_id:
+            templates = templates.filter(account_id=account_id)
+        enabled = request.query_params.get('enabled')
+        if enabled in ('true', 'false'):
+            templates = templates.filter(enabled=enabled == 'true')
+        return Response({'results': RecurringExpenseSerializer(templates, many=True).data, 'count': templates.count()})
+
+    serializer = RecurringExpenseSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    data = serializer.validated_data
+    if len(data['note'].strip()) < 3:
+        return Response({'note': 'Note must contain at least 3 characters.'}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        account = resolve_target_account(request.user, request.data.get('account_id'))
+        category = data.get('category')
+        if category and not (category.user_id is None or category.user_id == request.user.id):
+            raise DjangoValidationError("Category does not belong to this user.")
+        template = RecurringExpenseTemplate.objects.create(
+            user=request.user, account=account, name=data['name'].strip(), amount=data['amount'],
+            category=category, balance_type=data['balance_type'], frequency=data['frequency'],
+            start_date=data['start_date'], next_due_date=data.get('next_due_date') or data['start_date'],
+            end_date=data.get('end_date'), note=data['note'].strip(), enabled=data.get('enabled', True)
+        )
+    except (DjangoValidationError, FinancialAccount.DoesNotExist) as err:
+        return Response({'detail': err.messages[0] if hasattr(err, 'messages') else str(err)}, status=status.HTTP_400_BAD_REQUEST)
+    return Response(RecurringExpenseSerializer(template).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['PATCH', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def recurring_expense_detail_view(request, pk):
+    try:
+        template = RecurringExpenseTemplate.objects.get(pk=pk, user=request.user, deleted_at__isnull=True)
+    except RecurringExpenseTemplate.DoesNotExist:
+        return Response({'detail': 'Recurring expense not found.'}, status=status.HTTP_404_NOT_FOUND)
+    if request.method == 'DELETE':
+        template.enabled = False
+        template.deleted_at = timezone.now()
+        template.cancelled_at = timezone.now()
+        template.save(update_fields=['enabled', 'deleted_at', 'cancelled_at', 'updated_at'])
+        return Response({'message': 'Recurring expense cancelled.'})
+    serializer = RecurringExpenseSerializer(template, data=request.data, partial=True)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    data = serializer.validated_data
+    if 'note' in data and len(data['note'].strip()) < 3:
+        return Response({'note': 'Note must contain at least 3 characters.'}, status=status.HTTP_400_BAD_REQUEST)
+    for field, value in data.items():
+        if field not in ['account', 'occurrences']:
+            setattr(template, field, value.strip() if field in ['name', 'note'] else value)
+    template.save()
+    return Response(RecurringExpenseSerializer(template).data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def recurring_expense_record_view(request, pk):
+    try:
+        occurrence, template, txn, account = execute_record_recurring_expense(
+            pk, request.user,
+            datetime.strptime(request.data['scheduled_date'], '%Y-%m-%d').date()
+            if request.data.get('scheduled_date') else None
+        )
+    except (DjangoValidationError, RecurringExpenseTemplate.DoesNotExist, KeyError, ValueError) as err:
+        return Response({'detail': err.messages[0] if hasattr(err, 'messages') else str(err)}, status=status.HTTP_400_BAD_REQUEST)
+    return Response({
+        'occurrence': RecurringExpenseOccurrenceSerializer(occurrence).data,
+        'recurring_expense': RecurringExpenseSerializer(template).data,
+        'transaction': TransactionSerializer(txn).data,
+        'account': FinancialAccountSerializer(account).data
+    }, status=status.HTTP_201_CREATED)

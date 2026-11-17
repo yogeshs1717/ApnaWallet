@@ -461,3 +461,53 @@ export async function sellInvestment(id, payload) {
   await initCsrfToken();
   return await fetchFromApi(`/investments/${id}/`, { method: 'POST', body: JSON.stringify(payload) });
 }
+
+// ─── Budgets & Recurring Expenses (Prompt 07) ───────────────────────────────
+export async function getBudgets({ account_id, month }) {
+  const qs = new URLSearchParams({ ...(account_id && { account_id }), ...(month && { month }) }).toString();
+  return await fetchFromApi(`/budgets/?${qs}`);
+}
+
+export async function createBudget(payload) {
+  await initCsrfToken();
+  return await fetchFromApi('/budgets/', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export async function updateBudget(id, payload) {
+  await initCsrfToken();
+  return await fetchFromApi(`/budgets/${id}/`, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export async function deleteBudget(id) {
+  await initCsrfToken();
+  return await fetchFromApi(`/budgets/${id}/`, { method: 'DELETE' });
+}
+
+export async function getRecurringExpenses({ account_id, enabled } = {}) {
+  const params = Object.fromEntries(Object.entries({ account_id, enabled }).filter(([, value]) => value !== undefined && value !== ''));
+  const qs = new URLSearchParams(params).toString();
+  return await fetchFromApi(`/recurring-expenses/${qs ? `?${qs}` : ''}`);
+}
+
+export async function createRecurringExpense(payload) {
+  await initCsrfToken();
+  return await fetchFromApi('/recurring-expenses/', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export async function updateRecurringExpense(id, payload) {
+  await initCsrfToken();
+  return await fetchFromApi(`/recurring-expenses/${id}/`, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export async function cancelRecurringExpense(id) {
+  await initCsrfToken();
+  return await fetchFromApi(`/recurring-expenses/${id}/`, { method: 'DELETE' });
+}
+
+export async function recordRecurringExpense(id, scheduled_date) {
+  await initCsrfToken();
+  return await fetchFromApi(`/recurring-expenses/${id}/record/`, {
+    method: 'POST',
+    body: JSON.stringify({ scheduled_date }),
+  });
+}

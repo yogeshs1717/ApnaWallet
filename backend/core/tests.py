@@ -1,4 +1,5 @@
 from decimal import Decimal
+from datetime import date
 from django.contrib.auth.tokens import default_token_generator
 from django.core import mail
 from django.core.cache import cache
@@ -20,7 +21,11 @@ from .models import (
     User,
     Investment,
     SavingsGoal,
+    MonthlyBudget,
+    RecurringExpenseTemplate,
+    RecurringExpenseOccurrence,
 )
+from .services import advance_recurring_date
 
 
 class ApnaWalletSTQATestSuite(APITestCase):
@@ -1184,3 +1189,112 @@ class Prompt06SavingsInvestmentTests(APITestCase):
         response = self.client.post(reverse('savings_deposit', kwargs={'pk': goal.json()['id']}),
                                     {'amount': '10.00', 'balance_type': 'CASH'}, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class Prompt07BudgetRecurringTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email='budget@example.com', password='SecurePassword@123', full_name='Budget User')
+        self.other_user = User.objects.create_user(email='budget-other@example.com', password='SecurePassword@123', full_name='Other')
+        self.account = FinancialAccount.objects.create(user=self.user, name='Personal', is_default=True,
+                                                       cash_balance=Decimal('1000.00'), bank_balance=Decimal('1000.00'))
+        self.category = Category.objects.create(user=self.user, name='Bills')
+        self.client.force_login(self.user)
+        self.month = timezone.now().date().replace(day=1).strftime('%Y-%m')
+
+    def create_expense(self, amount, category=None):
+        return self.client.post(reverse('expense'), {
+            'account_id': str(self.account.id), 'amount': str(amount), 'balance_type': 'CASH',
+            'note': 'Budget test expense', **({'category_id': str(category.id)} if category else {})
+        }, format='json')
+
+    def test_bud_01_create_and_calculate_budget_from_expenses(self):
+        response = self.client.post(reverse('budgets'), {
+            'account_id': str(self.account.id), 'month': f'{self.month}-01', 'amount': '500.00'
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.create_expense(100)
+        summary = self.client.get(reverse('budgets'), {'account_id': str(self.account.id), 'month': self.month})
+        self.assertEqual(summary.json()['overall']['spent'], '100.00')
+
+    def test_bud_03_and_04_warning_at_and_above_100_percent(self):
+        self.client.post(reverse('budgets'), {'account_id': str(self.account.id), 'month': f'{self.month}-01', 'amount': '100.00'}, format='json')
+        self.create_expense(100)
+        exact = self.client.get(reverse('budgets'), {'account_id': str(self.account.id), 'month': self.month}).json()['overall']
+        self.assertTrue(exact['warning'])
+        self.create_expense(50)
+        above = self.client.get(reverse('budgets'), {'account_id': str(self.account.id), 'month': self.month}).json()['overall']
+        self.assertEqual(above['usage_percentage'], '150.00')
+        self.assertTrue(above['warning'])
+
+    def test_bud_05_no_budget_has_no_warning_and_bud_06_non_expenses_excluded(self):
+        Transaction.objects.create(account=self.account, transaction_type=Transaction.TransactionType.TRANSFER,
+                                   amount=Decimal('100.00'), balance_type='CASH', destination_balance_type='BANK', note='Transfer')
+        Transaction.objects.create(account=self.account, transaction_type=Transaction.TransactionType.LENDING,
+                                   amount=Decimal('100.00'), balance_type='CASH', note='Lending')
+        response = self.client.get(reverse('budgets'), {'account_id': str(self.account.id), 'month': self.month})
+        self.assertIsNone(response.json()['overall'])
+        self.assertEqual(response.json()['total_spent'], '0.00')
+
+    def test_bud_07_recalculate_after_edit_and_void(self):
+        self.client.post(reverse('budgets'), {'account_id': str(self.account.id), 'month': f'{self.month}-01', 'amount': '500.00'}, format='json')
+        transaction_id = self.create_expense(100).json()['transaction']['id']
+        detail = reverse('transaction_detail', kwargs={'pk': transaction_id})
+        self.client.patch(detail, {'amount': '200.00'}, format='json')
+        self.assertEqual(self.client.get(reverse('budgets'), {'account_id': str(self.account.id), 'month': self.month}).json()['overall']['spent'], '200.00')
+        self.client.delete(detail)
+        self.assertEqual(self.client.get(reverse('budgets'), {'account_id': str(self.account.id), 'month': self.month}).json()['overall']['spent'], '0.00')
+
+    def test_bud_08_duplicate_active_scope_rejected(self):
+        payload = {'account_id': str(self.account.id), 'month': f'{self.month}-01', 'amount': '500.00'}
+        self.assertEqual(self.client.post(reverse('budgets'), payload, format='json').status_code, status.HTTP_201_CREATED)
+        self.assertEqual(self.client.post(reverse('budgets'), payload, format='json').status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_rec_01_02_03_monthly_dates_handle_short_month_and_leap_year(self):
+        self.assertEqual(advance_recurring_date(date(2024, 1, 31), 'MONTHLY'), date(2024, 2, 29))
+        self.assertEqual(advance_recurring_date(date(2023, 1, 31), 'MONTHLY'), date(2023, 2, 28))
+        self.assertEqual(advance_recurring_date(date(2024, 2, 29), 'YEARLY'), date(2025, 2, 28))
+
+    def test_rec_04_05_disable_resume_does_not_deduct_until_recorded(self):
+        payload = {'account_id': str(self.account.id), 'name': 'Rent', 'amount': '200.00', 'balance_type': 'CASH',
+                   'frequency': 'MONTHLY', 'start_date': self.month + '-01', 'next_due_date': self.month + '-01', 'note': 'Monthly rent'}
+        created = self.client.post(reverse('recurring_expenses'), payload, format='json')
+        self.assertEqual(created.status_code, status.HTTP_201_CREATED)
+        template_id = created.json()['id']
+        before = FinancialAccount.objects.get(pk=self.account.id).cash_balance
+        self.client.patch(reverse('recurring_expense_detail', kwargs={'pk': template_id}), {'enabled': False}, format='json')
+        self.assertEqual(FinancialAccount.objects.get(pk=self.account.id).cash_balance, before)
+        self.client.patch(reverse('recurring_expense_detail', kwargs={'pk': template_id}), {'enabled': True}, format='json')
+        self.assertEqual(FinancialAccount.objects.get(pk=self.account.id).cash_balance, before)
+
+    def test_rec_06_07_record_and_duplicate_occurrence_rejected(self):
+        payload = {'account_id': str(self.account.id), 'name': 'Internet', 'amount': '75.00', 'balance_type': 'CASH',
+                   'frequency': 'MONTHLY', 'start_date': self.month + '-01', 'next_due_date': self.month + '-01', 'note': 'Internet bill'}
+        created = self.client.post(reverse('recurring_expenses'), payload, format='json')
+        template_id = created.json()['id']
+        url = reverse('recurring_expense_record', kwargs={'pk': template_id})
+        first = self.client.post(url, {'scheduled_date': self.month + '-01'}, format='json')
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        duplicate = self.client.post(url, {'scheduled_date': self.month + '-01'}, format='json')
+        self.assertEqual(duplicate.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Transaction.objects.filter(transaction_type='EXPENSE').count(), 1)
+
+    def test_rec_08_insufficient_funds_rolls_back(self):
+        payload = {'account_id': str(self.account.id), 'name': 'Large bill', 'amount': '5000.00', 'balance_type': 'CASH',
+                   'frequency': 'MONTHLY', 'start_date': self.month + '-01', 'next_due_date': self.month + '-01', 'note': 'Large bill'}
+        created = self.client.post(reverse('recurring_expenses'), payload, format='json')
+        response = self.client.post(reverse('recurring_expense_record', kwargs={'pk': created.json()['id']}), format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(FinancialAccount.objects.get(pk=self.account.id).cash_balance, Decimal('1000.00'))
+        self.assertEqual(Transaction.objects.filter(transaction_type='EXPENSE').count(), 0)
+
+    def test_rec_09_cancel_preserves_recorded_transaction_and_rec_10_isolation(self):
+        payload = {'account_id': str(self.account.id), 'name': 'Phone', 'amount': '50.00', 'balance_type': 'CASH',
+                   'frequency': 'MONTHLY', 'start_date': self.month + '-01', 'next_due_date': self.month + '-01', 'note': 'Phone bill'}
+        created = self.client.post(reverse('recurring_expenses'), payload, format='json')
+        template_id = created.json()['id']
+        self.client.post(reverse('recurring_expense_record', kwargs={'pk': template_id}), format='json')
+        self.client.delete(reverse('recurring_expense_detail', kwargs={'pk': template_id}))
+        self.assertEqual(Transaction.objects.filter(transaction_type='EXPENSE').count(), 1)
+        self.client.force_login(self.other_user)
+        self.assertEqual(self.client.get(reverse('recurring_expenses'), {'account_id': str(self.account.id)}).status_code, status.HTTP_200_OK)
+        self.assertEqual(len(self.client.get(reverse('recurring_expenses'), {'account_id': str(self.account.id)}).json()['results']), 0)

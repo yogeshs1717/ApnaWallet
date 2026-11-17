@@ -136,7 +136,7 @@ export default function Navbar({ activeTab = 'home', onSelectTab }) {
 
       {/* Mobile Bottom Navigation Bar (Fintech-friendly 5 items) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 py-1 shadow-lg">
-        <div className="grid grid-cols-5 gap-1">
+        <div className="grid grid-cols-6 gap-1">
           {mobileNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;

@@ -1,4 +1,6 @@
 from decimal import Decimal
+import calendar
+from datetime import timedelta
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
@@ -17,6 +19,9 @@ from .models import (
     SavingsDeposit,
     SavingsGoal,
     SavingsWithdrawal,
+    MonthlyBudget,
+    RecurringExpenseOccurrence,
+    RecurringExpenseTemplate,
     Transaction,
 )
 
@@ -41,6 +46,53 @@ def seed_default_categories():
             name=cat['name'],
             defaults={'icon': cat['icon'], 'color': cat['color'], 'is_active': True}
         )
+
+
+def advance_recurring_date(current_date, frequency):
+    if frequency == RecurringExpenseTemplate.Frequency.DAILY:
+        return current_date + timedelta(days=1)
+    if frequency == RecurringExpenseTemplate.Frequency.WEEKLY:
+        return current_date + timedelta(days=7)
+    if frequency == RecurringExpenseTemplate.Frequency.YEARLY:
+        year = current_date.year + 1
+        return current_date.replace(year=year, day=min(current_date.day, calendar.monthrange(year, current_date.month)[1]))
+    year = current_date.year + (1 if current_date.month == 12 else 0)
+    month = 1 if current_date.month == 12 else current_date.month + 1
+    return current_date.replace(year=year, month=month, day=min(current_date.day, calendar.monthrange(year, month)[1]))
+
+
+@transaction.atomic
+def execute_record_recurring_expense(template_id, user, scheduled_date=None):
+    template = RecurringExpenseTemplate.objects.select_for_update().select_related('account').get(
+        pk=template_id, user=user, deleted_at__isnull=True
+    )
+    if not template.enabled:
+        raise ValidationError("This recurring expense is disabled.")
+    occurrence_date = scheduled_date or template.next_due_date
+    if occurrence_date != template.next_due_date:
+        raise ValidationError("The scheduled date does not match the next due occurrence.")
+    if template.end_date and occurrence_date > template.end_date:
+        raise ValidationError("This recurring expense has passed its end date.")
+    if RecurringExpenseOccurrence.objects.filter(template=template, scheduled_date=occurrence_date).exists():
+        raise ValidationError("This scheduled occurrence has already been recorded.")
+
+    txn, locked_account = execute_expense(
+        account=template.account,
+        amount=template.amount,
+        source_balance_type=template.balance_type,
+        note=template.note,
+        date=occurrence_date,
+        category=template.category
+    )
+    occurrence = RecurringExpenseOccurrence.objects.create(
+        template=template, scheduled_date=occurrence_date, transaction=txn
+    )
+    next_date = advance_recurring_date(occurrence_date, template.frequency)
+    template.next_due_date = next_date
+    if template.end_date and next_date > template.end_date:
+        template.enabled = False
+    template.save(update_fields=['next_due_date', 'enabled', 'updated_at'])
+    return occurrence, template, txn, locked_account
 
 
 def _debit_account(account, amount, balance_type):

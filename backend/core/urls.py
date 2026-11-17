@@ -30,6 +30,11 @@ from .views import (
     savings_goal_action_view,
     investments_view,
     investment_detail_view,
+    budgets_view,
+    budget_detail_view,
+    recurring_expenses_view,
+    recurring_expense_detail_view,
+    recurring_expense_record_view,
 )
 
 urlpatterns = [
@@ -76,6 +81,13 @@ urlpatterns = [
     path('savings/<uuid:pk>/action/', savings_goal_action_view, name='savings_goal_action'),
     path('investments/', investments_view, name='investments'),
     path('investments/<uuid:pk>/', investment_detail_view, name='investment_detail'),
+
+    # Budgets & recurring expenses (Prompt 07)
+    path('budgets/', budgets_view, name='budgets'),
+    path('budgets/<uuid:pk>/', budget_detail_view, name='budget_detail'),
+    path('recurring-expenses/', recurring_expenses_view, name='recurring_expenses'),
+    path('recurring-expenses/<uuid:pk>/', recurring_expense_detail_view, name='recurring_expense_detail'),
+    path('recurring-expenses/<uuid:pk>/record/', recurring_expense_record_view, name='recurring_expense_record'),
 
     # Password Recovery
     path('auth/password-reset/', password_reset_request_view, name='password_reset_request'),

@@ -1,6 +1,7 @@
 from decimal import Decimal
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
+from django.utils import timezone
 from rest_framework import serializers
 from .models import (
     Category,
@@ -17,6 +18,9 @@ from .models import (
     SavingsGoal,
     SavingsDeposit,
     SavingsWithdrawal,
+    MonthlyBudget,
+    RecurringExpenseTemplate,
+    RecurringExpenseOccurrence,
 )
 
 
@@ -482,3 +486,50 @@ class InvestmentSerializer(serializers.ModelSerializer):
         model = Investment
         fields = ['id', 'name', 'investment_type', 'cost_basis', 'platform', 'purchase_date', 'note', 'is_closed', 'sales', 'created_at', 'updated_at']
         read_only_fields = ['id', 'cost_basis', 'is_closed', 'sales', 'created_at', 'updated_at']
+
+
+class MonthlyBudgetSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source='category.name', read_only=True, allow_null=True)
+    spent = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    remaining = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    usage_percentage = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    warning = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = MonthlyBudget
+        fields = [
+            'id', 'account', 'month', 'category', 'category_name', 'amount',
+            'is_active', 'spent', 'remaining', 'usage_percentage', 'warning',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'account', 'spent', 'remaining', 'usage_percentage', 'warning', 'created_at', 'updated_at']
+
+
+class RecurringExpenseOccurrenceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RecurringExpenseOccurrence
+        fields = ['id', 'scheduled_date', 'transaction', 'created_at']
+        read_only_fields = fields
+
+
+class RecurringExpenseSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source='category.name', read_only=True, allow_null=True)
+    status = serializers.SerializerMethodField()
+    occurrences = RecurringExpenseOccurrenceSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = RecurringExpenseTemplate
+        fields = [
+            'id', 'account', 'name', 'amount', 'category', 'category_name',
+            'balance_type', 'frequency', 'start_date', 'next_due_date',
+            'end_date', 'note', 'enabled', 'status', 'occurrences',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'account', 'status', 'occurrences', 'created_at', 'updated_at']
+
+    def get_status(self, obj):
+        if obj.deleted_at:
+            return 'CANCELLED'
+        if not obj.enabled:
+            return 'PAUSED'
+        return 'OVERDUE' if obj.next_due_date < timezone.now().date() else 'UPCOMING'

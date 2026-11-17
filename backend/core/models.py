@@ -538,3 +538,73 @@ class InvestmentSale(models.Model):
     note = models.CharField(max_length=255, blank=True, default='')
     transaction = models.ForeignKey(Transaction, on_delete=models.PROTECT, related_name='investment_sales')
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class MonthlyBudget(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='monthly_budgets', db_index=True)
+    account = models.ForeignKey(FinancialAccount, on_delete=models.CASCADE, related_name='monthly_budgets')
+    month = models.DateField(help_text='First day of the calendar month.')
+    category = models.ForeignKey(Category, on_delete=models.PROTECT, null=True, blank=True, related_name='monthly_budgets')
+    amount = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['month', 'category__name']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['account', 'month', 'category'],
+                condition=models.Q(is_active=True),
+                name='unique_active_budget_scope'
+            ),
+            models.UniqueConstraint(
+                fields=['account', 'month'],
+                condition=models.Q(is_active=True, category__isnull=True),
+                name='unique_active_overall_budget'
+            )
+        ]
+
+
+class RecurringExpenseTemplate(models.Model):
+    class Frequency(models.TextChoices):
+        DAILY = 'DAILY', 'Daily'
+        WEEKLY = 'WEEKLY', 'Weekly'
+        MONTHLY = 'MONTHLY', 'Monthly'
+        YEARLY = 'YEARLY', 'Yearly'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='recurring_expenses', db_index=True)
+    account = models.ForeignKey(FinancialAccount, on_delete=models.CASCADE, related_name='recurring_expenses')
+    name = models.CharField(max_length=120)
+    amount = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
+    category = models.ForeignKey(Category, on_delete=models.PROTECT, null=True, blank=True, related_name='recurring_expenses')
+    balance_type = models.CharField(max_length=8, choices=Transaction.BalanceType.choices)
+    frequency = models.CharField(max_length=8, choices=Frequency.choices)
+    start_date = models.DateField()
+    next_due_date = models.DateField(db_index=True)
+    end_date = models.DateField(null=True, blank=True)
+    note = models.CharField(max_length=255)
+    enabled = models.BooleanField(default=True, db_index=True)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['next_due_date', 'name']
+
+
+class RecurringExpenseOccurrence(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    template = models.ForeignKey(RecurringExpenseTemplate, on_delete=models.PROTECT, related_name='occurrences')
+    scheduled_date = models.DateField()
+    transaction = models.OneToOneField(Transaction, on_delete=models.PROTECT, related_name='recurring_occurrence')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-scheduled_date', '-created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['template', 'scheduled_date'], name='unique_recurring_occurrence')
+        ]
