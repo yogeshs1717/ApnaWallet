@@ -2,13 +2,15 @@ from decimal import Decimal
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
-from .models import User, FinancialAccount
+from .models import Category, FinancialAccount, Transaction, User
 
 
 class FinancialAccountSerializer(serializers.ModelSerializer):
     """
-    Serializer for User's Financial Account.
+    Serializer for User's Financial Account with precise balance formatting.
     """
+    total_balance = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+
     class Meta:
         model = FinancialAccount
         fields = [
@@ -18,10 +20,11 @@ class FinancialAccountSerializer(serializers.ModelSerializer):
             'currency',
             'cash_balance',
             'bank_balance',
+            'total_balance',
             'created_at',
             'updated_at'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'total_balance', 'created_at', 'updated_at']
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
@@ -57,7 +60,6 @@ class RegisterSerializer(serializers.Serializer):
         return normalized_email
 
     def validate_password(self, value):
-        # Enforces Django's built-in password validators
         validate_password(value)
         return value
 
@@ -67,7 +69,6 @@ class RegisterSerializer(serializers.Serializer):
             password=validated_data['password'],
             full_name=validated_data['full_name']
         )
-        # Automatically create default 'Personal' financial account
         FinancialAccount.objects.create(
             user=user,
             name='Personal',
@@ -104,20 +105,120 @@ class LoginSerializer(serializers.Serializer):
 
 
 class PasswordResetRequestSerializer(serializers.Serializer):
-    """
-    Serializer for requesting a password reset email.
-    """
     email = serializers.EmailField()
 
 
 class PasswordResetConfirmSerializer(serializers.Serializer):
-    """
-    Serializer for confirming password reset with token.
-    """
     uid = serializers.CharField()
     token = serializers.CharField()
     new_password = serializers.CharField(write_only=True, min_length=8)
 
     def validate_new_password(self, value):
         validate_password(value)
+        return value
+
+
+# -------------------------------------------------------------
+# Financial Engine Serializers (Prompt 04)
+# -------------------------------------------------------------
+
+class CategorySerializer(serializers.ModelSerializer):
+    """
+    Serializer for Expense / Income Categories.
+    """
+    class Meta:
+        model = Category
+        fields = ['id', 'name', 'icon', 'color', 'is_active', 'user']
+        read_only_fields = ['id', 'user']
+
+
+class TransactionSerializer(serializers.ModelSerializer):
+    """
+    Serializer for Transaction ledger history.
+    """
+    category_details = CategorySerializer(source='category', read_only=True)
+    account_name = serializers.CharField(source='account.name', read_only=True)
+
+    class Meta:
+        model = Transaction
+        fields = [
+            'id',
+            'account',
+            'account_name',
+            'transaction_type',
+            'amount',
+            'balance_type',
+            'destination_balance_type',
+            'category',
+            'category_details',
+            'note',
+            'date',
+            'is_voided',
+            'created_at',
+            'updated_at'
+        ]
+        read_only_fields = ['id', 'is_voided', 'created_at', 'updated_at']
+
+
+class AddCashSerializer(serializers.Serializer):
+    account_id = serializers.UUIDField(required=False)
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal('0.01'))
+    balance_type = serializers.ChoiceField(choices=['CASH', 'BANK'])
+    note = serializers.CharField(max_length=255)
+    date = serializers.DateField(required=False)
+    category_id = serializers.UUIDField(required=False, allow_null=True)
+
+    def validate_note(self, value):
+        trimmed = value.strip()
+        if len(trimmed) < 3:
+            raise serializers.ValidationError("Note/Description must contain at least 3 characters.")
+        return trimmed
+
+
+class ExpenseSerializer(serializers.Serializer):
+    account_id = serializers.UUIDField(required=False)
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal('0.01'))
+    balance_type = serializers.ChoiceField(choices=['CASH', 'BANK'])
+    note = serializers.CharField(max_length=255)
+    date = serializers.DateField(required=False)
+    category_id = serializers.UUIDField(required=False, allow_null=True)
+
+    def validate_note(self, value):
+        trimmed = value.strip()
+        if len(trimmed) < 3:
+            raise serializers.ValidationError("Note must contain at least 3 characters.")
+        return trimmed
+
+
+class TransferSerializer(serializers.Serializer):
+    account_id = serializers.UUIDField(required=False)
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal('0.01'))
+    source_balance_type = serializers.ChoiceField(choices=['CASH', 'BANK'])
+    destination_balance_type = serializers.ChoiceField(choices=['CASH', 'BANK'])
+    note = serializers.CharField(max_length=255)
+    date = serializers.DateField(required=False)
+
+    def validate(self, attrs):
+        if attrs['source_balance_type'] == attrs['destination_balance_type']:
+            raise serializers.ValidationError("Source and destination balance types must be different.")
+        trimmed = attrs.get('note', '').strip()
+        if len(trimmed) < 3:
+            raise serializers.ValidationError({"note": "Transfer note must contain at least 3 characters."})
+        attrs['note'] = trimmed
+        return attrs
+
+
+class UpdateExpenseSerializer(serializers.Serializer):
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal('0.01'), required=False)
+    balance_type = serializers.ChoiceField(choices=['CASH', 'BANK'], required=False)
+    note = serializers.CharField(max_length=255, required=False)
+    date = serializers.DateField(required=False)
+    category_id = serializers.UUIDField(required=False, allow_null=True)
+
+    def validate_note(self, value):
+        if value is not None:
+            trimmed = value.strip()
+            if len(trimmed) < 3:
+                raise serializers.ValidationError("Note must contain at least 3 characters.")
+            return trimmed
         return value

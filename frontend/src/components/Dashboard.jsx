@@ -1,4 +1,13 @@
-import React from 'react';
+/**
+ * Dashboard.jsx
+ * Prompt 04 — Milestone 8: Connected to live backend data
+ *
+ * - Balances are read from selectedAccount (fetched from /api/accounts/ on login)
+ * - After any financial operation, refreshUserData() is called in QuickActions → 
+ *   AuthContext re-fetches accounts → new balances flow here via props
+ * - RecentTransactions receives a refreshTrigger so it re-fetches after each op
+ */
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import AccountSelector from './AccountSelector';
 import BalanceCard from './BalanceCard';
@@ -8,22 +17,27 @@ import ApiStatus from './ApiStatus';
 import { Sparkles, Shield, ArrowRight } from 'lucide-react';
 
 export default function Dashboard() {
-  const { 
-    user, 
-    accounts, 
-    selectedAccount, 
-    setSelectedAccount, 
-    isAuthenticated, 
-    setAuthView 
+  const {
+    user,
+    accounts,
+    selectedAccount,
+    setSelectedAccount,
+    isAuthenticated,
+    setAuthView,
   } = useAuth();
 
-  const cash = parseFloat(selectedAccount?.cash_balance || 0);
-  const bank = parseFloat(selectedAccount?.bank_balance || 0);
+  // Incremented after any successful financial operation to trigger RecentTransactions refresh
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // QuickActions calls refreshUserData internally; we also bump the trigger
+  // by wrapping setSelectedAccount so RecentTransactions sees the change
+  const cash  = parseFloat(selectedAccount?.cash_balance  || 0);
+  const bank  = parseFloat(selectedAccount?.bank_balance  || 0);
   const total = cash + bank;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
-      
+
       {/* Guest Mode Callout Banner */}
       {!isAuthenticated && (
         <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-orange-500/10 via-amber-500/10 to-yellow-500/10 border border-orange-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
@@ -65,35 +79,35 @@ export default function Dashboard() {
             {isAuthenticated ? `Welcome, ${user?.full_name}` : 'Financial Overview'}
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            {isAuthenticated 
+            {isAuthenticated
               ? `Account: ${selectedAccount?.name || 'Personal'} (${user?.email})`
               : 'Welcome back to your personal financial hub.'}
           </p>
         </div>
-        
-        <AccountSelector 
+
+        <AccountSelector
           accounts={accounts}
-          selectedAccount={selectedAccount} 
-          onSelectAccount={setSelectedAccount} 
+          selectedAccount={selectedAccount}
+          onSelectAccount={setSelectedAccount}
         />
       </div>
 
       {/* Backend Live Health Probe */}
       <ApiStatus />
 
-      {/* Consolidated Balance Card (Total, Cash, Bank in INR) */}
-      <BalanceCard 
-        totalBalance={total} 
-        cashBalance={cash} 
-        bankBalance={bank} 
+      {/* Live Balance Card — real values from Neon via selectedAccount */}
+      <BalanceCard
+        totalBalance={total}
+        cashBalance={cash}
+        bankBalance={bank}
         currency="₹"
       />
 
-      {/* Quick Action Buttons */}
-      <QuickActions />
+      {/* Quick Actions — open modals, call refreshUserData on success */}
+      <QuickActions onTransactionSuccess={() => setRefreshTrigger((n) => n + 1)} />
 
-      {/* Recent Transactions List / Placeholder */}
-      <RecentTransactions transactions={[]} />
+      {/* Recent Transactions — re-fetches when refreshTrigger changes */}
+      <RecentTransactions refreshTrigger={refreshTrigger} />
     </div>
   );
 }

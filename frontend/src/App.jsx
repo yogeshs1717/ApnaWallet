@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AppLayout from './components/AppLayout';
 import Dashboard from './components/Dashboard';
+import ActivityPage from './pages/ActivityPage';
 import PlaceholderView from './pages/PlaceholderView';
 import AuthModal from './components/auth/AuthModal';
 
@@ -27,11 +28,9 @@ function MainApp() {
   return (
     <>
       <AppLayout activeTab={activeTab} onSelectTab={setActiveTab}>
-        {activeTab === 'home' ? (
-          <Dashboard />
-        ) : (
-          <PlaceholderView section={activeTab} />
-        )}
+        {activeTab === 'home'     ? <Dashboard /> :
+         activeTab === 'activity' ? <ActivityPage /> :
+                                    <PlaceholderView section={activeTab} />}
       </AppLayout>
 
       {/* Authentication Modal / Mobile Sheet */}

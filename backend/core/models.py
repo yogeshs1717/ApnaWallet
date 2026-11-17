@@ -1,7 +1,9 @@
 import uuid
 from decimal import Decimal
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+from django.core.validators import MinValueValidator
 from django.db import models
+from django.utils import timezone
 
 
 class UserManager(BaseUserManager):
@@ -68,8 +70,18 @@ class FinancialAccount(models.Model):
     name = models.CharField(max_length=64, default='Personal')
     is_default = models.BooleanField(default=True)
     currency = models.CharField(max_length=3, default='INR')
-    cash_balance = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
-    bank_balance = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    cash_balance = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        validators=[MinValueValidator(Decimal('0.00'))]
+    )
+    bank_balance = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        validators=[MinValueValidator(Decimal('0.00'))]
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -79,5 +91,114 @@ class FinancialAccount(models.Model):
             models.UniqueConstraint(fields=['user', 'name'], name='unique_account_name_per_user')
         ]
 
+    @property
+    def total_balance(self):
+        return self.cash_balance + self.bank_balance
+
     def __str__(self):
         return f"{self.name} ({self.user.email})"
+
+
+class Category(models.Model):
+    """
+    Expense or Income Category.
+    If user is NULL, it is a system-wide default category.
+    If user is set, it is a custom category created by that user.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='custom_categories',
+        null=True,
+        blank=True,
+        db_index=True
+    )
+    name = models.CharField(max_length=64)
+    icon = models.CharField(max_length=32, default='Tag')
+    color = models.CharField(max_length=32, default='#FF6B00')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name_plural = 'Categories'
+
+    def __str__(self):
+        return self.name
+
+
+class Transaction(models.Model):
+    """
+    Authoritative Financial Transaction Ledger.
+    Tracks all money additions, expenses, and internal transfers.
+    """
+    class TransactionType(models.TextChoices):
+        ADD_CASH = 'ADD_CASH', 'Add Cash'
+        EXPENSE = 'EXPENSE', 'Expense'
+        TRANSFER = 'TRANSFER', 'Transfer'
+        # Prepared for future modules:
+        LENDING = 'LENDING', 'Lending'
+        LENDING_REPAYMENT = 'LENDING_REPAYMENT', 'Lending Repayment'
+        CREDIT = 'CREDIT', 'Credit'
+        CREDIT_REPAYMENT = 'CREDIT_REPAYMENT', 'Credit Repayment'
+        SAVINGS_ALLOCATION = 'SAVINGS_ALLOCATION', 'Savings Allocation'
+        INVESTMENT_PURCHASE = 'INVESTMENT_PURCHASE', 'Investment Purchase'
+
+    class BalanceType(models.TextChoices):
+        CASH = 'CASH', 'Cash'
+        BANK = 'BANK', 'Bank'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    account = models.ForeignKey(
+        FinancialAccount,
+        on_delete=models.CASCADE,
+        related_name='transactions',
+        db_index=True
+    )
+    transaction_type = models.CharField(
+        max_length=32,
+        choices=TransactionType.choices,
+        db_index=True
+    )
+    amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.01'))]
+    )
+    balance_type = models.CharField(
+        max_length=8,
+        choices=BalanceType.choices,
+        help_text="Primary balance (source for expense/transfer, destination for add cash)"
+    )
+    destination_balance_type = models.CharField(
+        max_length=8,
+        choices=BalanceType.choices,
+        null=True,
+        blank=True,
+        help_text="Target balance (only for TRANSFER)"
+    )
+    category = models.ForeignKey(
+        Category,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='transactions'
+    )
+    note = models.CharField(
+        max_length=255,
+        help_text="Mandatory note of at least 3 characters"
+    )
+    date = models.DateField(default=timezone.now)
+    is_voided = models.BooleanField(
+        default=False,
+        help_text="Soft-reversal / voiding for historical audit integrity"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-date', '-created_at']
+
+    def __str__(self):
+        return f"{self.transaction_type} ₹{self.amount} - {self.note}"

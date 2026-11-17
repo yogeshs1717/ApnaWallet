@@ -166,3 +166,127 @@ export async function confirmPasswordReset({ uid, token, new_password }) {
     body: JSON.stringify({ uid, token, new_password }),
   });
 }
+
+// ─── Financial Account ────────────────────────────────────────────────────────
+
+/**
+ * Get a specific financial account's balances
+ */
+export async function getAccountDetail(accountId) {
+  return await fetchFromApi(`/accounts/${accountId}/`);
+}
+
+// ─── Categories ───────────────────────────────────────────────────────────────
+
+/**
+ * Get all expense categories (system + user's own)
+ */
+export async function getCategories() {
+  return await fetchFromApi('/categories/');
+}
+
+/**
+ * Create a custom expense category
+ */
+export async function createCategory(name) {
+  await initCsrfToken();
+  return await fetchFromApi('/categories/', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  });
+}
+
+/**
+ * Delete (soft-archive) a user-owned category
+ */
+export async function deleteCategory(categoryId) {
+  await initCsrfToken();
+  return await fetchFromApi(`/categories/${categoryId}/`, {
+    method: 'DELETE',
+  });
+}
+
+// ─── Transactions ─────────────────────────────────────────────────────────────
+
+/**
+ * Add Cash — increments cash_balance or bank_balance
+ * @param {Object} p
+ * @param {string} p.account_id  UUID of the financial account
+ * @param {string|number} p.amount
+ * @param {'CASH'|'BANK'} p.balance_type   destination
+ * @param {string} p.note        min 3 chars after trim
+ * @param {string} p.date        YYYY-MM-DD
+ * @param {string} [p.category_id]
+ */
+export async function addCash({ account_id, amount, balance_type, note, date, category_id }) {
+  await initCsrfToken();
+  return await fetchFromApi('/transactions/add-cash/', {
+    method: 'POST',
+    body: JSON.stringify({ account_id, amount, balance_type, note, date, ...(category_id && { category_id }) }),
+  });
+}
+
+/**
+ * Record an Expense — deducts from cash_balance or bank_balance
+ */
+export async function createExpense({ account_id, amount, balance_type, note, date, category_id }) {
+  await initCsrfToken();
+  return await fetchFromApi('/transactions/expense/', {
+    method: 'POST',
+    body: JSON.stringify({ account_id, amount, balance_type, note, date, category_id }),
+  });
+}
+
+/**
+ * Update an existing expense (differential balance recalculation in backend)
+ */
+export async function updateExpense(transactionId, { amount, balance_type, note, date, category_id }) {
+  await initCsrfToken();
+  return await fetchFromApi(`/transactions/${transactionId}/`, {
+    method: 'PATCH',
+    body: JSON.stringify({ amount, balance_type, note, date, category_id }),
+  });
+}
+
+/**
+ * Cash ↔ Bank Transfer — total balance unchanged
+ */
+export async function createTransfer({ account_id, amount, balance_type, destination_balance_type, note, date }) {
+  await initCsrfToken();
+  return await fetchFromApi('/transactions/transfer/', {
+    method: 'POST',
+    body: JSON.stringify({ account_id, amount, balance_type, destination_balance_type, note, date }),
+  });
+}
+
+/**
+ * Void a transaction (soft-delete with balance restoration)
+ */
+export async function voidTransaction(transactionId) {
+  await initCsrfToken();
+  return await fetchFromApi(`/transactions/${transactionId}/`, {
+    method: 'DELETE',
+  });
+}
+
+/**
+ * Get paginated transaction list with optional filters
+ * @param {Object} params
+ * @param {string} [params.search]        note/description search
+ * @param {string} [params.type]          ADD_CASH | EXPENSE | TRANSFER
+ * @param {string} [params.balance_type]  CASH | BANK
+ * @param {string} [params.category]      UUID
+ * @param {string} [params.date_from]     YYYY-MM-DD
+ * @param {string} [params.date_to]       YYYY-MM-DD
+ * @param {number} [params.amount_min]
+ * @param {number} [params.amount_max]
+ * @param {number} [params.limit]         default 20
+ * @param {number} [params.offset]        default 0
+ */
+export async function getTransactions(params = {}) {
+  const cleanParams = Object.fromEntries(
+    Object.entries(params).filter(([, v]) => v !== '' && v !== null && v !== undefined)
+  );
+  const qs = new URLSearchParams(cleanParams).toString();
+  return await fetchFromApi(`/transactions/${qs ? `?${qs}` : ''}`);
+}
