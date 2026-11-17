@@ -1,15 +1,20 @@
 import React from 'react';
 import logoImg from '../assets/logo.jpg';
+import { useAuth } from '../context/AuthContext';
 import { 
   Home, 
   ArrowLeftRight, 
   BarChart3, 
   Briefcase, 
   MoreHorizontal,
-  Bell
+  Bell,
+  LogOut,
+  User as UserIcon,
+  LogIn
 } from 'lucide-react';
 
 export default function Navbar({ activeTab = 'home', onSelectTab }) {
+  const { user, isAuthenticated, logout, setAuthView } = useAuth();
   const navItems = [
     { id: 'home', label: 'Home', icon: Home },
     { id: 'activity', label: 'Activity', icon: ArrowLeftRight },
@@ -71,14 +76,42 @@ export default function Navbar({ activeTab = 'home', onSelectTab }) {
               })}
             </nav>
 
-            {/* Right Action Icons */}
+            {/* Right Action Icons & Auth Controls */}
             <div className="flex items-center space-x-2">
-              <button 
-                title="Notifications"
-                className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                <Bell className="w-4 h-4" />
-              </button>
+              {isAuthenticated ? (
+                <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 px-2.5 py-1.5 rounded-xl bg-amber-50/80 border border-amber-200/60 shadow-2xs">
+                    <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-orange-500 to-amber-500 text-white flex items-center justify-center text-xs font-bold">
+                      {user?.full_name?.[0] || 'U'}
+                    </div>
+                    <span className="text-xs font-semibold text-slate-800 hidden sm:inline max-w-[100px] truncate">
+                      {user?.full_name?.split(' ')[0]}
+                    </span>
+                  </div>
+                  <button
+                    onClick={logout}
+                    title="Log Out"
+                    className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center space-x-1.5">
+                  <button
+                    onClick={() => setAuthView('login')}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
+                    Sign In
+                  </button>
+                  <button
+                    onClick={() => setAuthView('register')}
+                    className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-xs cursor-pointer"
+                  >
+                    Register
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
