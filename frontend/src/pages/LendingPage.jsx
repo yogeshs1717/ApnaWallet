@@ -381,6 +381,8 @@ export default function LendingPage() {
       {activeModal === 'lend' && selectedAccount && (
         <LendModal
           accountId={selectedAccount.id}
+          cashBalance={selectedAccount.cash_balance}
+          bankBalance={selectedAccount.bank_balance}
           onSuccess={handleOpSuccess}
           onClose={() => setActiveModal(null)}
         />

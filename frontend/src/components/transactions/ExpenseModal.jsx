@@ -14,18 +14,26 @@ import {
   Plus, Trash2,
 } from 'lucide-react';
 import { createExpense, updateExpense, getCategories, createCategory } from '../../api/client';
+import { useAuth } from '../../context/AuthContext';
 
 function today() {
   return new Date().toISOString().split('T')[0];
 }
 
-export default function ExpenseModal({ accountId, onSuccess, onClose, editTransaction = null }) {
+export default function ExpenseModal({ accountId, onSuccess, onClose, editTransaction = null, cashBalance, bankBalance }) {
   const isEdit = !!editTransaction;
+  const { selectedAccount } = useAuth();
+  const cash = parseFloat(cashBalance ?? selectedAccount?.cash_balance ?? 0);
+  const bank = parseFloat(bankBalance ?? selectedAccount?.bank_balance ?? 0);
+
+  const defaultSource = isEdit
+    ? (editTransaction.balance_type || 'CASH')
+    : ((cash <= 0 && bank > 0) ? 'BANK' : 'CASH');
 
   const [form, setForm] = useState({
     amount: isEdit ? String(editTransaction.amount) : '',
     note: isEdit ? (editTransaction.note || '') : '',
-    balance_type: isEdit ? (editTransaction.balance_type || 'CASH') : 'CASH',
+    balance_type: defaultSource,
     date: isEdit ? (editTransaction.transaction_date || today()) : today(),
     category_id: isEdit ? (editTransaction.category?.id || '') : '',
   });
@@ -174,12 +182,27 @@ export default function ExpenseModal({ accountId, onSuccess, onClose, editTransa
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">₹</span>
                 <input
-                  type="number" min="0.01" step="0.01" placeholder="0.00"
+                  type="number" min="0.01" step="any" placeholder="0.00"
                   value={form.amount} onChange={set('amount')}
                   className={`w-full pl-7 pr-4 py-3 rounded-xl border text-sm font-semibold text-slate-900 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:bg-white transition ${errors.amount ? 'border-red-400' : 'border-slate-200'}`}
                 />
               </div>
               {errors.amount && <p className="mt-1 text-xs text-red-600">{errors.amount}</p>}
+              {parseFloat(form.amount || 0) > cash && bank >= parseFloat(form.amount || 0) && form.balance_type === 'CASH' && !isEdit && (
+                <div className="mt-2 flex items-center justify-between rounded-xl bg-amber-50 p-2.5 text-xs text-amber-900 border border-amber-300">
+                  <span>💡 Cash has ₹{cash.toFixed(2)}. Your Bank has ₹{bank.toFixed(2)}.</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForm((f) => ({ ...f, balance_type: 'BANK' }));
+                      setErrors((e) => ({ ...e, amount: undefined }));
+                    }}
+                    className="ml-2 px-2.5 py-1 rounded-lg bg-amber-600 text-white font-bold text-xs hover:bg-amber-700 transition cursor-pointer"
+                  >
+                    Switch to Bank
+                  </button>
+                </div>
+              )}
               {isEdit && (
                 <p className="mt-1 text-[10px] text-slate-400">
                   Original: ₹{editTransaction.amount}. Only the difference will be applied to your balance.
@@ -235,21 +258,44 @@ export default function ExpenseModal({ accountId, onSuccess, onClose, editTransa
 
             {/* Payment Source */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Pay from</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700">Pay from</label>
+                <span className="text-[11px] text-slate-400">Total: ₹{(cash + bank).toFixed(2)}</span>
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { value: 'CASH', label: 'Cash', Icon: Wallet },
-                  { value: 'BANK', label: 'Bank', Icon: Landmark },
-                ].map(({ value, label, Icon }) => (
-                  <button
-                    key={value} type="button"
-                    onClick={() => setForm((f) => ({ ...f, balance_type: value }))}
-                    className={`flex items-center gap-2.5 p-3 rounded-xl border-2 transition cursor-pointer ${form.balance_type === value ? 'border-rose-500 bg-rose-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}
-                  >
-                    <Icon className={`w-5 h-5 ${form.balance_type === value ? 'text-rose-600' : 'text-slate-400'}`} />
-                    <span className={`text-xs font-bold ${form.balance_type === value ? 'text-rose-700' : 'text-slate-700'}`}>{label}</span>
-                  </button>
-                ))}
+                  { value: 'CASH', label: 'Cash', available: cash, Icon: Wallet },
+                  { value: 'BANK', label: 'Bank', available: bank, Icon: Landmark },
+                ].map(({ value, label, available, Icon }) => {
+                  const isSelected = form.balance_type === value;
+                  const entered = parseFloat(form.amount || 0);
+                  const isInsufficient = entered > available && entered > 0;
+                  return (
+                    <button
+                      key={value} type="button"
+                      onClick={() => {
+                        setForm((f) => ({ ...f, balance_type: value }));
+                        setErrors((e) => ({ ...e, amount: undefined }));
+                      }}
+                      className={`flex items-start gap-2.5 p-3 rounded-xl border-2 transition cursor-pointer text-left ${isSelected ? 'border-rose-500 bg-rose-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                    >
+                      <Icon className={`w-5 h-5 mt-0.5 shrink-0 ${isSelected ? 'text-rose-600' : 'text-slate-400'}`} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className={`text-xs font-bold ${isSelected ? 'text-rose-700' : 'text-slate-700'}`}>{label}</span>
+                          <span className={`text-[11px] font-bold ${available > 0 ? (isSelected ? 'text-rose-800' : 'text-slate-700') : 'text-slate-400'}`}>
+                            ₹{available.toFixed(2)}
+                          </span>
+                        </div>
+                        {isInsufficient && (
+                          <span className="inline-block text-[10px] font-semibold text-rose-600 mt-0.5">
+                            Insufficient
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 

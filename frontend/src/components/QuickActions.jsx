@@ -128,6 +128,8 @@ export default function QuickActions({ expenseOpenSignal, onTransactionSuccess }
       {activeModal === 'expense' && selectedAccount && (
         <ExpenseModal
           accountId={selectedAccount.id}
+          cashBalance={selectedAccount.cash_balance}
+          bankBalance={selectedAccount.bank_balance}
           onSuccess={handleSuccess}
           onClose={() => setActiveModal(null)}
         />
@@ -146,6 +148,8 @@ export default function QuickActions({ expenseOpenSignal, onTransactionSuccess }
       {activeModal === 'lend' && selectedAccount && (
         <LendModal
           accountId={selectedAccount.id}
+          cashBalance={selectedAccount.cash_balance}
+          bankBalance={selectedAccount.bank_balance}
           onSuccess={handleSuccess}
           onClose={() => setActiveModal(null)}
         />

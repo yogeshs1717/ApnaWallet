@@ -9,6 +9,7 @@
 import React, { useState, useRef } from 'react';
 import { X, HandCoins, Wallet, Landmark, Loader2, CheckCircle, AlertCircle, Info } from 'lucide-react';
 import { createLend } from '../../api/client';
+import { useAuth } from '../../context/AuthContext';
 
 function today() {
   return new Date().toISOString().split('T')[0];
@@ -16,11 +17,18 @@ function today() {
 
 const COMMON_BORROWERS = ['Ranjan', 'Rohan', 'Vikram', 'Sunita', 'Ankit', 'Friend'];
 
-export default function LendModal({ accountId, onSuccess, onClose }) {
+export default function LendModal({ accountId, onSuccess, onClose, cashBalance, bankBalance }) {
+  const { selectedAccount } = useAuth();
+  const cash = parseFloat(cashBalance ?? selectedAccount?.cash_balance ?? 0);
+  const bank = parseFloat(bankBalance ?? selectedAccount?.bank_balance ?? 0);
+
+  // Smart default: If Cash is empty but Bank has money, default to BANK
+  const defaultSource = (cash <= 0 && bank > 0) ? 'BANK' : 'CASH';
+
   const [form, setForm] = useState({
     borrower_name: '',
     amount: '',
-    balance_type: 'CASH',
+    balance_type: defaultSource,
     date: today(),
     note: '',
   });
@@ -39,6 +47,15 @@ export default function LendModal({ accountId, onSuccess, onClose }) {
     const amt = parseFloat(form.amount);
     if (!form.amount || isNaN(amt) || amt <= 0) {
       e.amount = 'Enter a valid positive amount.';
+    } else {
+      const selectedBal = form.balance_type === 'CASH' ? cash : bank;
+      if (amt > selectedBal) {
+        if (form.balance_type === 'CASH' && bank >= amt) {
+          e.amount = `Insufficient Cash (₹${cash.toFixed(2)}). You have ₹${bank.toFixed(2)} in Bank — please select Bank below.`;
+        } else {
+          e.amount = `Insufficient ${form.balance_type === 'CASH' ? 'Cash' : 'Bank'} balance. Available: ₹${selectedBal.toFixed(2)}, requested: ₹${amt.toFixed(2)}.`;
+        }
+      }
     }
     if (!form.date) e.date = 'Date is required.';
     return e;
@@ -58,7 +75,7 @@ export default function LendModal({ accountId, onSuccess, onClose }) {
 
     try {
       const result = await createLend({
-        account_id: accountId,
+        account_id: accountId || selectedAccount?.id,
         borrower_name: form.borrower_name.trim(),
         amount: form.amount,
         balance_type: form.balance_type,
@@ -74,6 +91,8 @@ export default function LendModal({ accountId, onSuccess, onClose }) {
       submitting.current = false;
     }
   }
+
+  const enteredAmt = parseFloat(form.amount || 0);
 
   return (
     <div
@@ -169,7 +188,7 @@ export default function LendModal({ accountId, onSuccess, onClose }) {
                 <input
                   type="number"
                   min="0.01"
-                  step="0.01"
+                  step="any"
                   placeholder="0.00"
                   value={form.amount}
                   onChange={set('amount')}
@@ -177,33 +196,70 @@ export default function LendModal({ accountId, onSuccess, onClose }) {
                 />
               </div>
               {errors.amount && <p className="mt-1 text-xs text-red-600">{errors.amount}</p>}
+
+              {/* Smart auto-switch suggestion */}
+              {enteredAmt > cash && bank >= enteredAmt && form.balance_type === 'CASH' && (
+                <div className="mt-2 flex items-center justify-between rounded-xl bg-amber-50 p-2.5 text-xs text-amber-900 border border-amber-300">
+                  <span>💡 Cash has ₹{cash.toFixed(2)}. Your Bank has ₹{bank.toFixed(2)}.</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForm((f) => ({ ...f, balance_type: 'BANK' }));
+                      setErrors((e) => ({ ...e, amount: undefined }));
+                    }}
+                    className="ml-2 px-2.5 py-1 rounded-lg bg-amber-600 text-white font-bold text-xs hover:bg-amber-700 transition cursor-pointer"
+                  >
+                    Switch to Bank
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Payment Source */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Disburse from</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700">Disburse from</label>
+                <span className="text-[11px] text-slate-400">Total available: ₹{(cash + bank).toFixed(2)}</span>
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { value: 'CASH', label: 'Cash', Icon: Wallet, desc: 'Physical cash' },
-                  { value: 'BANK', label: 'Bank', Icon: Landmark, desc: 'Online / UPI / Netbanking' },
-                ].map(({ value, label, Icon, desc }) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setForm((f) => ({ ...f, balance_type: value }))}
-                    className={`flex items-center gap-2.5 p-3 rounded-xl border-2 transition cursor-pointer ${
-                      form.balance_type === value
-                        ? 'border-amber-500 bg-amber-50'
-                        : 'border-slate-200 bg-white hover:border-slate-300'
-                    }`}
-                  >
-                    <Icon className={`w-5 h-5 ${form.balance_type === value ? 'text-amber-600' : 'text-slate-400'}`} />
-                    <div className="text-left">
-                      <p className={`text-xs font-bold ${form.balance_type === value ? 'text-amber-800' : 'text-slate-700'}`}>{label}</p>
-                      <p className="text-[10px] text-slate-400">{desc}</p>
-                    </div>
-                  </button>
-                ))}
+                  { value: 'CASH', label: 'Cash', available: cash, Icon: Wallet, desc: 'Physical cash' },
+                  { value: 'BANK', label: 'Bank', available: bank, Icon: Landmark, desc: 'Online / UPI' },
+                ].map(({ value, label, available, Icon, desc }) => {
+                  const isSelected = form.balance_type === value;
+                  const isInsufficient = enteredAmt > available && enteredAmt > 0;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => {
+                        setForm((f) => ({ ...f, balance_type: value }));
+                        setErrors((e) => ({ ...e, amount: undefined }));
+                      }}
+                      className={`flex items-start gap-2.5 p-3 rounded-xl border-2 transition cursor-pointer text-left ${
+                        isSelected
+                          ? 'border-amber-500 bg-amber-50 shadow-sm'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
+                    >
+                      <Icon className={`w-5 h-5 mt-0.5 shrink-0 ${isSelected ? 'text-amber-600' : 'text-slate-400'}`} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between">
+                          <p className={`text-xs font-bold ${isSelected ? 'text-amber-900' : 'text-slate-700'}`}>{label}</p>
+                          <span className={`text-[11px] font-bold ${available > 0 ? (isSelected ? 'text-amber-800' : 'text-slate-700') : 'text-slate-400'}`}>
+                            ₹{available.toFixed(2)}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 truncate mt-0.5">{desc}</p>
+                        {isInsufficient && (
+                          <span className="inline-block text-[10px] font-semibold text-rose-600 mt-0.5">
+                            Insufficient
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
