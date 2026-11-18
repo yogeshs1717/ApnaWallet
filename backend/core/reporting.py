@@ -1,5 +1,6 @@
 import csv
 import io
+from collections import defaultdict
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -145,24 +146,34 @@ def build_report(user, params):
         total=Sum('bank_balance')
     )['total'] or ZERO
 
-    budgets = MonthlyBudget.objects.filter(
+    budgets = list(MonthlyBudget.objects.filter(
         user=user, is_active=True, month__year=start.year, month__month=start.month,
         **({'account': account} if account else {})
-    ).select_related('category')
+    ).select_related('category'))
     budget_rows = []
-    for budget in budgets:
-        actual_queryset = transactions.filter(transaction_type=Transaction.TransactionType.EXPENSE)
-        if budget.category_id:
-            actual_queryset = actual_queryset.filter(category=budget.category)
-        budget_spent = actual_queryset.aggregate(total=Sum('amount'))['total'] or ZERO
-        usage = (budget_spent / budget.amount * Decimal('100')).quantize(Decimal('0.01')) if budget.amount else ZERO
-        budget_rows.append({
-            'scope': budget.category.name if budget.category else 'Overall',
-            'amount': budget.amount,
-            'spent': budget_spent,
-            'remaining': budget.amount - budget_spent,
-            'usage_percentage': usage,
-        })
+    if budgets:
+        next_month = (start.replace(day=28) + timedelta(days=4)).replace(day=1)
+        month_expenses = list(transactions.filter(
+            transaction_type=Transaction.TransactionType.EXPENSE,
+            date__gte=start,
+            date__lt=next_month
+        ).values('category_id', 'amount'))
+        overall_spent = sum((e['amount'] for e in month_expenses), ZERO)
+        cat_spent_map = defaultdict(lambda: ZERO)
+        for e in month_expenses:
+            if e['category_id']:
+                cat_spent_map[e['category_id']] += e['amount']
+
+        for budget in budgets:
+            budget_spent = cat_spent_map[budget.category_id] if budget.category_id else overall_spent
+            usage = (budget_spent / budget.amount * Decimal('100')).quantize(Decimal('0.01')) if budget.amount else ZERO
+            budget_rows.append({
+                'scope': budget.category.name if budget.category else 'Overall',
+                'amount': budget.amount,
+                'spent': budget_spent,
+                'remaining': budget.amount - budget_spent,
+                'usage_percentage': usage,
+            })
 
     return {
         'period': period,
@@ -203,6 +214,23 @@ def build_trends(user, params):
     if category_id:
         transactions = transactions.filter(category_id=category_id)
 
+    # Fetch all matching transactions in ONE query to avoid N+1 DB round-trips
+    txns = list(transactions.filter(
+        transaction_type__in=[
+            Transaction.TransactionType.ADD_CASH,
+            Transaction.TransactionType.EXPENSE,
+        ]
+    ).values('date', 'transaction_type', 'amount'))
+
+    day_map = defaultdict(lambda: {'income': ZERO, 'expenses': ZERO})
+    for t in txns:
+        d = t['date']
+        amt = t['amount']
+        if t['transaction_type'] == Transaction.TransactionType.ADD_CASH:
+            day_map[d]['income'] += amt
+        elif t['transaction_type'] == Transaction.TransactionType.EXPENSE:
+            day_map[d]['expenses'] += amt
+
     if period == 'yearly':
         points = []
         for month_number in range(1, 13):
@@ -211,27 +239,33 @@ def build_trends(user, params):
                 month_end = date(start.year, 12, 31)
             else:
                 month_end = date(start.year, month_number + 1, 1) - timedelta(days=1)
-            month_txn = transactions.filter(date__gte=month_start, date__lte=month_end)
-            income = month_txn.filter(transaction_type=Transaction.TransactionType.ADD_CASH).aggregate(total=Sum('amount'))['total'] or ZERO
-            expenses = month_txn.filter(transaction_type=Transaction.TransactionType.EXPENSE).aggregate(total=Sum('amount'))['total'] or ZERO
-            points.append({'label': month_start.strftime('%b'), 'income': income, 'expenses': expenses})
+            m_income = ZERO
+            m_expenses = ZERO
+            curr = month_start
+            while curr <= month_end:
+                if curr in day_map:
+                    m_income += day_map[curr]['income']
+                    m_expenses += day_map[curr]['expenses']
+                curr += timedelta(days=1)
+            points.append({'label': month_start.strftime('%b'), 'income': m_income, 'expenses': m_expenses})
         return {'period': period, 'points': points}
 
     if period == 'monthly':
         points = []
         current = start
         while current <= end:
-            day_txn = transactions.filter(date=current)
-            income = day_txn.filter(transaction_type=Transaction.TransactionType.ADD_CASH).aggregate(total=Sum('amount'))['total'] or ZERO
-            expenses = day_txn.filter(transaction_type=Transaction.TransactionType.EXPENSE).aggregate(total=Sum('amount'))['total'] or ZERO
-            points.append({'label': current.strftime('%d'), 'income': income, 'expenses': expenses})
+            val = day_map.get(current, {'income': ZERO, 'expenses': ZERO})
+            points.append({'label': current.strftime('%d'), 'income': val['income'], 'expenses': val['expenses']})
             current += timedelta(days=1)
         return {'period': period, 'points': points}
 
-    current_txn = transactions.filter(date=start)
-    income = current_txn.filter(transaction_type=Transaction.TransactionType.ADD_CASH).aggregate(total=Sum('amount'))['total'] or ZERO
-    expenses = current_txn.filter(transaction_type=Transaction.TransactionType.EXPENSE).aggregate(total=Sum('amount'))['total'] or ZERO
-    return {'period': period, 'points': [{'label': start.strftime('%d %b'), 'income': income, 'expenses': expenses}]}
+    points = []
+    current = start
+    while current <= end:
+        val = day_map.get(current, {'income': ZERO, 'expenses': ZERO})
+        points.append({'label': current.strftime('%d %b'), 'income': val['income'], 'expenses': val['expenses']})
+        current += timedelta(days=1)
+    return {'period': period, 'points': points}
 
 
 def _csv_value(value):

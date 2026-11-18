@@ -37,15 +37,14 @@ export default function ReportsPage() {
         category,
       };
       try {
-        const [summaryData, trendData, categoryResult] = await Promise.all([
+        const [summaryData, trendData] = await Promise.all([
           getReportSummary(params),
           getReportTrends(params),
-          getReportCategories(params),
         ]);
         if (!active) return;
         setSummary(summaryData);
         setTrends(trendData);
-        setCategoryData(categoryResult.categories || []);
+        setCategoryData(summaryData.categories || []);
       } catch (err) {
         if (active) setError(err.message || 'Unable to load financial reports.');
       } finally {

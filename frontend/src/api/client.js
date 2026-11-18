@@ -53,7 +53,7 @@ export async function fetchFromApi(endpoint, options = {}) {
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout for Neon cold starts
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout for remote cloud DB & Neon cold starts
 
     const response = await fetch(url, {
       ...config,
