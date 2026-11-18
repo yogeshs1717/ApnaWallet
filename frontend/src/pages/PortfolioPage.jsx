@@ -1,38 +1,395 @@
 import React, { useEffect, useState } from 'react';
 import { Target, TrendingUp, Plus, ArrowDownToLine, ArrowUpFromLine, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { actOnSavingsGoal, createInvestment, createSavingsGoal, depositSavings, getInvestments, getSavings, sellInvestment, withdrawSavings } from '../api/client';
+import {
+  actOnSavingsGoal,
+  createInvestment,
+  createSavingsGoal,
+  depositSavings,
+  getInvestments,
+  getSavings,
+  sellInvestment,
+  withdrawSavings,
+} from '../api/client';
 
-const money = (value) => new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(Number(value || 0));
-const initialForm = { name: '', target_amount: '', target_date: '' };
-const inputClass = 'w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:border-orange-400 focus:outline-none';
+const money = (value) =>
+  new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(Number(value || 0));
 
-function Field({ label, ...props }) { return <label className="space-y-1 text-xs font-semibold text-slate-600"><span>{label}</span><input className={inputClass} {...props} /></label>; }
+const todayStr = () => new Date().toISOString().split('T')[0];
+
+const sanitizeDate = (val) => {
+  if (!val) return val;
+  const parts = val.split('-');
+  if (parts[0] && parts[0].length > 4) {
+    parts[0] = parts[0].slice(0, 4);
+    return parts.join('-');
+  }
+  return val;
+};
+
+const initialGoalForm = { name: '', target_amount: '', target_date: '' };
+const inputClass =
+  'w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:border-orange-400 focus:outline-none';
+
+function Field({ label, ...props }) {
+  return (
+    <label className="space-y-1 text-xs font-semibold text-slate-600">
+      <span>{label}</span>
+      <input className={inputClass} {...props} />
+    </label>
+  );
+}
 
 export default function PortfolioPage() {
   const { refreshUserData, isAuthenticated, setAuthView } = useAuth();
-  const [savings, setSavings] = useState(null); const [investments, setInvestments] = useState(null);
-  const [goalForm, setGoalForm] = useState(initialForm); const [amount, setAmount] = useState('');
-  const [investmentForm, setInvestmentForm] = useState({ name: '', investment_type: 'STOCKS', amount: '', platform: '', purchase_date: '', note: '', balance_type: 'BANK' });
-  const [sale, setSale] = useState(null); const [error, setError] = useState('');
-  const load = async () => { if (!isAuthenticated) return; try { const [s, i] = await Promise.all([getSavings(), getInvestments()]); setSavings(s); setInvestments(i); } catch (e) { setError(e.message); } };
-  useEffect(() => { load(); }, [isAuthenticated]); // eslint-disable-line react-hooks/exhaustive-deps
-  const run = async (operation) => { setError(''); try { await operation(); await load(); await refreshUserData(); } catch (e) { setError(e.message); } };
-  if (!isAuthenticated) return <div className="rounded-3xl bg-white p-8 text-center shadow-sm"><h2 className="text-xl font-bold">Sign in to manage your portfolio</h2><button onClick={() => setAuthView('login')} className="mt-4 rounded-xl bg-orange-500 px-5 py-2 text-sm font-bold text-white">Sign In</button></div>;
+  const [savings, setSavings] = useState(null);
+  const [investments, setInvestments] = useState(null);
+  const [goalForm, setGoalForm] = useState(initialGoalForm);
+  const [amount, setAmount] = useState('');
+  const [investmentForm, setInvestmentForm] = useState({
+    name: '',
+    investment_type: 'STOCKS',
+    amount: '',
+    platform: '',
+    purchase_date: todayStr(),
+    note: '',
+    balance_type: 'BANK',
+  });
+  const [sale, setSale] = useState(null);
+  const [error, setError] = useState('');
+
+  const load = async () => {
+    if (!isAuthenticated) return;
+    try {
+      const [s, i] = await Promise.all([getSavings(), getInvestments()]);
+      setSavings(s);
+      setInvestments(i);
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, [isAuthenticated]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const run = async (operation) => {
+    setError('');
+    try {
+      await operation();
+      await load();
+      await refreshUserData();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="rounded-3xl bg-white p-8 text-center shadow-sm">
+        <h2 className="text-xl font-bold">Sign in to manage your portfolio</h2>
+        <button
+          onClick={() => setAuthView('login')}
+          className="mt-4 rounded-xl bg-orange-500 px-5 py-2 text-sm font-bold text-white"
+        >
+          Sign In
+        </button>
+      </div>
+    );
+  }
+
   const active = savings?.active_goal;
-  return <div className="space-y-6">
-    <div><h1 className="text-2xl font-black text-slate-900">Savings & Investments</h1><p className="mt-1 text-sm text-slate-500">Reserve money intentionally and track assets without turning them into expenses.</p></div>
-    {error && <div className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
-    <section className="grid gap-4 md:grid-cols-2">
-      <div className="rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 p-6 text-white shadow-lg"><div className="flex items-center gap-2 text-sm font-bold"><Target className="h-5 w-5" /> Saved Wallet</div><div className="mt-4 text-3xl font-black">₹{money(savings?.saved_wallet_balance)}</div><p className="mt-1 text-xs text-emerald-100">Excluded from Available Balance</p></div>
-      <div className="rounded-3xl bg-white p-6 shadow-sm border border-slate-100"><div className="flex items-center gap-2 text-sm font-bold text-slate-700"><TrendingUp className="h-5 w-5 text-orange-500" /> Investment Portfolio</div><div className="mt-4 text-3xl font-black text-slate-900">₹{money(investments?.total_invested)}</div><p className="mt-1 text-xs text-slate-400">Remaining cost basis, not live valuation</p></div>
-    </section>
-    <section className="rounded-3xl bg-white p-5 shadow-sm border border-slate-100 space-y-4">
-      <div className="flex items-center justify-between"><h2 className="font-bold">Active savings goal</h2>{active && <span className="text-xs font-bold text-emerald-600">{active.progress_percentage}%</span>}</div>
-      {active ? <><div className="flex justify-between text-sm"><span>{active.name}</span><span>₹{money(active.saved_amount)} / ₹{money(active.target_amount)}</span></div><div className="h-3 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${active.progress_percentage}%` }} /></div><div className="grid grid-cols-2 gap-2 sm:grid-cols-4"><Field label="Amount" type="number" min="0.01" value={amount} onChange={e => setAmount(e.target.value)} /><button className="mt-5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white" onClick={() => run(() => depositSavings(active.id, { amount, balance_type: 'BANK' }))}><ArrowDownToLine className="mx-auto h-4 w-4" />Save</button><button className="mt-5 rounded-xl bg-orange-500 px-3 py-2 text-xs font-bold text-white" onClick={() => run(() => withdrawSavings(active.id, { amount, balance_type: 'BANK' }))}><ArrowUpFromLine className="mx-auto h-4 w-4" />Withdraw</button>      <button className="mt-5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold" onClick={() => run(() => actOnSavingsGoal(active.id, 'cancel', 'BANK'))}>Cancel</button></div></> : <form className="grid gap-3 sm:grid-cols-3" onSubmit={e => { e.preventDefault(); run(async () => { await createSavingsGoal(goalForm); setGoalForm(initialForm); }); }}><Field label="Goal name" required value={goalForm.name} onChange={e => setGoalForm({ ...goalForm, name: e.target.value })} /><Field label="Target amount" required type="number" min="0.01" value={goalForm.target_amount} onChange={e => setGoalForm({ ...goalForm, target_amount: e.target.value })} /><Field label="Target date (optional)" type="date" value={goalForm.target_date} onChange={e => setGoalForm({ ...goalForm, target_date: e.target.value })} /><button className="rounded-xl bg-orange-500 px-4 py-2 text-sm font-bold text-white sm:col-span-3"><Plus className="mr-1 inline h-4 w-4" />Create Goal</button></form>}
-    </section>
-    <section className="rounded-3xl bg-white p-5 shadow-sm border border-slate-100 space-y-4"><h2 className="font-bold">Goal history</h2>{(savings?.goals || []).filter(g => g.status !== 'ACTIVE').map(g => <div key={g.id} className="flex items-center justify-between rounded-xl bg-slate-50 p-3 text-sm text-slate-500"><span className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4" />{g.name}</span><span>{g.status === 'COMPLETED' ? 'Mission Accomplished' : 'Cancelled'} · ₹{money(g.saved_amount)}</span></div>)}</section>
-    <section className="rounded-3xl bg-white p-5 shadow-sm border border-slate-100 space-y-4"><h2 className="font-bold">Add investment</h2><form className="grid gap-3 sm:grid-cols-2" onSubmit={e => { e.preventDefault(); run(async () => { await createInvestment(investmentForm); setInvestmentForm({ ...investmentForm, name: '', amount: '', platform: '', note: '' }); }); }}>{[['name','Investment name'],['amount','Amount invested'],['platform','Platform / site']].map(([key,label]) => <Field key={key} label={label} required type={key === 'amount' ? 'number' : 'text'} min={key === 'amount' ? '0.01' : undefined} value={investmentForm[key]} onChange={e => setInvestmentForm({ ...investmentForm, [key]: e.target.value })} />)}<label className="space-y-1 text-xs font-semibold text-slate-600"><span>Type</span><select className={inputClass} value={investmentForm.investment_type} onChange={e => setInvestmentForm({ ...investmentForm, investment_type: e.target.value })}>{['GOLD','CRYPTO','STOCKS','MUTUAL_FUNDS','OTHER'].map(x => <option key={x}>{x}</option>)}</select></label><Field label="Purchase date" type="date" value={investmentForm.purchase_date} onChange={e => setInvestmentForm({ ...investmentForm, purchase_date: e.target.value })} /><button className="rounded-xl bg-orange-500 px-4 py-2 text-sm font-bold text-white sm:col-span-2">Record Purchase</button></form></section>
-    <section className="rounded-3xl bg-white p-5 shadow-sm border border-slate-100 space-y-3"><h2 className="font-bold">Investment history</h2>{(investments?.investments || []).map(i => <div key={i.id} className={`rounded-xl border p-3 ${i.is_closed ? 'bg-slate-50 text-slate-400' : 'border-slate-100'}`}><div className="flex justify-between text-sm font-bold"><span>{i.name} <span className="text-xs font-normal text-slate-400">{i.investment_type}</span></span><span>₹{money(i.cost_basis)}</span></div><div className="mt-1 flex justify-between text-xs text-slate-500"><span>{i.platform}</span>{!i.is_closed && <button className="font-bold text-orange-600" onClick={() => setSale({ id: i.id, max: i.cost_basis, proceeds: '', cost_basis_sold: '' })}>Record sale</button>}</div>{sale?.id === i.id && <form className="mt-3 grid grid-cols-2 gap-2" onSubmit={e => { e.preventDefault(); run(async () => { await sellInvestment(i.id, { cost_basis_sold: sale.cost_basis_sold, proceeds: sale.proceeds, balance_type: 'BANK' }); setSale(null); }); }}><Field label="Cost basis sold" required type="number" max={sale.max} value={sale.cost_basis_sold} onChange={e => setSale({ ...sale, cost_basis_sold: e.target.value })} /><Field label="Actual proceeds" required type="number" min="0" value={sale.proceeds} onChange={e => setSale({ ...sale, proceeds: e.target.value })} /><button className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white">Record Sale</button></form>}</div>)}</section>
-  </div>;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-black text-slate-900">Savings & Investments</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          Reserve money intentionally and track assets without turning them into expenses.
+        </p>
+      </div>
+
+      {error && <div className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
+
+      <section className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 p-6 text-white shadow-lg">
+          <div className="flex items-center gap-2 text-sm font-bold">
+            <Target className="h-5 w-5" /> Saved Wallet
+          </div>
+          <div className="mt-4 text-3xl font-black">₹{money(savings?.saved_wallet_balance)}</div>
+          <p className="mt-1 text-xs text-emerald-100">Excluded from Available Balance</p>
+        </div>
+        <div className="rounded-3xl bg-white p-6 shadow-sm border border-slate-100">
+          <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
+            <TrendingUp className="h-5 w-5 text-orange-500" /> Investment Portfolio
+          </div>
+          <div className="mt-4 text-3xl font-black text-slate-900">
+            ₹{money(investments?.total_invested)}
+          </div>
+          <p className="mt-1 text-xs text-slate-400">Remaining cost basis, not live valuation</p>
+        </div>
+      </section>
+
+      {/* Active Savings Goal */}
+      <section className="rounded-3xl bg-white p-5 shadow-sm border border-slate-100 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="font-bold">Active savings goal</h2>
+          {active && <span className="text-xs font-bold text-emerald-600">{active.progress_percentage}%</span>}
+        </div>
+        {active ? (
+          <>
+            <div className="flex justify-between text-sm">
+              <span>{active.name}</span>
+              <span>
+                ₹{money(active.saved_amount)} / ₹{money(active.target_amount)}
+              </span>
+            </div>
+            <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+              <div
+                className="h-full rounded-full bg-emerald-500 transition-all"
+                style={{ width: `${active.progress_percentage}%` }}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <Field
+                label="Amount"
+                type="number"
+                min="0.01"
+                step="any"
+                placeholder="0.00"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+              />
+              <button
+                className="mt-5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 transition"
+                onClick={() => run(() => depositSavings(active.id, { amount, balance_type: 'BANK' }))}
+              >
+                <ArrowDownToLine className="mx-auto h-4 w-4" /> Save
+              </button>
+              <button
+                className="mt-5 rounded-xl bg-orange-500 px-3 py-2 text-xs font-bold text-white hover:bg-orange-600 transition"
+                onClick={() => run(() => withdrawSavings(active.id, { amount, balance_type: 'BANK' }))}
+              >
+                <ArrowUpFromLine className="mx-auto h-4 w-4" /> Withdraw
+              </button>
+              <button
+                className="mt-5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 transition"
+                onClick={() => run(() => actOnSavingsGoal(active.id, 'cancel', 'BANK'))}
+              >
+                Cancel
+              </button>
+            </div>
+          </>
+        ) : (
+          <form
+            className="grid gap-3 sm:grid-cols-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              run(async () => {
+                await createSavingsGoal(goalForm);
+                setGoalForm(initialGoalForm);
+              });
+            }}
+          >
+            <Field
+              label="Goal name"
+              required
+              placeholder="e.g. Vacation Fund"
+              value={goalForm.name}
+              onChange={(e) => setGoalForm({ ...goalForm, name: e.target.value })}
+            />
+            <Field
+              label="Target amount"
+              required
+              type="number"
+              min="0.01"
+              step="any"
+              placeholder="e.g. 50000"
+              value={goalForm.target_amount}
+              onChange={(e) => setGoalForm({ ...goalForm, target_amount: e.target.value })}
+            />
+            <Field
+              label="Target date (optional)"
+              type="date"
+              min={todayStr()}
+              max="2099-12-31"
+              value={goalForm.target_date}
+              onChange={(e) => setGoalForm({ ...goalForm, target_date: sanitizeDate(e.target.value) })}
+            />
+            <button className="rounded-xl bg-orange-500 px-4 py-2 text-sm font-bold text-white sm:col-span-3 hover:bg-orange-600 transition">
+              <Plus className="mr-1 inline h-4 w-4" /> Create Goal
+            </button>
+          </form>
+        )}
+      </section>
+
+      {/* Goal History */}
+      <section className="rounded-3xl bg-white p-5 shadow-sm border border-slate-100 space-y-4">
+        <h2 className="font-bold">Goal history</h2>
+        {(savings?.goals || [])
+          .filter((g) => g.status !== 'ACTIVE')
+          .map((g) => (
+            <div
+              key={g.id}
+              className="flex items-center justify-between rounded-xl bg-slate-50 p-3 text-sm text-slate-500"
+            >
+              <span className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                {g.name}
+              </span>
+              <span>
+                {g.status === 'COMPLETED' ? 'Mission Accomplished' : 'Cancelled'} · ₹{money(g.saved_amount)}
+              </span>
+            </div>
+          ))}
+      </section>
+
+      {/* Add Investment */}
+      <section className="rounded-3xl bg-white p-5 shadow-sm border border-slate-100 space-y-4">
+        <h2 className="font-bold">Add investment</h2>
+        <form
+          className="grid gap-3 sm:grid-cols-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            run(async () => {
+              await createInvestment(investmentForm);
+              setInvestmentForm({
+                ...investmentForm,
+                name: '',
+                amount: '',
+                platform: '',
+                note: '',
+                purchase_date: todayStr(),
+              });
+            });
+          }}
+        >
+          <Field
+            label="Investment name"
+            required
+            placeholder="e.g. Gold, Nifty 50"
+            value={investmentForm.name}
+            onChange={(e) => setInvestmentForm({ ...investmentForm, name: e.target.value })}
+          />
+          <Field
+            label="Amount invested"
+            required
+            type="number"
+            min="0.01"
+            step="any"
+            placeholder="e.g. 450 or 450.55"
+            value={investmentForm.amount}
+            onChange={(e) => setInvestmentForm({ ...investmentForm, amount: e.target.value })}
+          />
+          <Field
+            label="Platform / site"
+            placeholder="e.g. Paytm, Zerodha, Groww"
+            value={investmentForm.platform}
+            onChange={(e) => setInvestmentForm({ ...investmentForm, platform: e.target.value })}
+          />
+          <label className="space-y-1 text-xs font-semibold text-slate-600">
+            <span>Type</span>
+            <select
+              className={inputClass}
+              value={investmentForm.investment_type}
+              onChange={(e) => setInvestmentForm({ ...investmentForm, investment_type: e.target.value })}
+            >
+              {['GOLD', 'CRYPTO', 'STOCKS', 'MUTUAL_FUNDS', 'OTHER'].map((x) => (
+                <option key={x} value={x}>
+                  {x}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Field
+            label="Purchase date"
+            type="date"
+            min="1970-01-01"
+            max={todayStr()}
+            value={investmentForm.purchase_date}
+            onChange={(e) =>
+              setInvestmentForm({ ...investmentForm, purchase_date: sanitizeDate(e.target.value) })
+            }
+          />
+          <button className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-bold text-white sm:col-span-2 hover:bg-orange-600 transition">
+            Record Purchase
+          </button>
+        </form>
+      </section>
+
+      {/* Investment History */}
+      <section className="rounded-3xl bg-white p-5 shadow-sm border border-slate-100 space-y-3">
+        <h2 className="font-bold">Investment history</h2>
+        {(investments?.investments || []).map((i) => (
+          <div
+            key={i.id}
+            className={`rounded-xl border p-3 ${
+              i.is_closed ? 'bg-slate-50 text-slate-400' : 'border-slate-100'
+            }`}
+          >
+            <div className="flex justify-between text-sm font-bold">
+              <span>
+                {i.name} <span className="text-xs font-normal text-slate-400">({i.investment_type})</span>
+              </span>
+              <span>₹{money(i.cost_basis)}</span>
+            </div>
+            <div className="mt-1 flex justify-between text-xs text-slate-500">
+              <span>{i.platform || 'Direct'}</span>
+              {!i.is_closed && (
+                <button
+                  className="font-bold text-orange-600 hover:text-orange-700"
+                  onClick={() =>
+                    setSale({ id: i.id, max: i.cost_basis, proceeds: '', cost_basis_sold: '' })
+                  }
+                >
+                  Record sale
+                </button>
+              )}
+            </div>
+            {sale?.id === i.id && (
+              <form
+                className="mt-3 grid grid-cols-2 gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  run(async () => {
+                    await sellInvestment(i.id, {
+                      cost_basis_sold: sale.cost_basis_sold,
+                      proceeds: sale.proceeds,
+                      balance_type: 'BANK',
+                    });
+                    setSale(null);
+                  });
+                }}
+              >
+                <Field
+                  label="Cost basis sold"
+                  required
+                  type="number"
+                  min="0.01"
+                  step="any"
+                  max={sale.max}
+                  placeholder="0.00"
+                  value={sale.cost_basis_sold}
+                  onChange={(e) => setSale({ ...sale, cost_basis_sold: e.target.value })}
+                />
+                <Field
+                  label="Actual proceeds"
+                  required
+                  type="number"
+                  min="0"
+                  step="any"
+                  placeholder="0.00"
+                  value={sale.proceeds}
+                  onChange={(e) => setSale({ ...sale, proceeds: e.target.value })}
+                />
+                <button className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 transition col-span-2">
+                  Record Sale
+                </button>
+              </form>
+            )}
+          </div>
+        ))}
+      </section>
+    </div>
+  );
 }

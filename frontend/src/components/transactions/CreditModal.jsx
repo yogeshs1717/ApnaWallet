@@ -268,6 +268,7 @@ export default function CreditModal({ accountId, onSuccess, onClose }) {
                   type="date"
                   value={form.pay_by_date}
                   min={today()}
+                  max="2099-12-31"
                   onChange={set('pay_by_date')}
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white transition"
                 />
