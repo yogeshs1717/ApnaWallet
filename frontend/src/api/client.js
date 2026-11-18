@@ -451,7 +451,10 @@ export async function getInvestments() {
 }
 export async function createInvestment(payload) {
   await initCsrfToken();
-  return await fetchFromApi('/investments/', { method: 'POST', body: JSON.stringify(payload) });
+  return await fetchFromApi('/investments/', {
+    method: 'POST',
+    body: JSON.stringify({ ...payload, link_to_balance: false, separate: true }),
+  });
 }
 export async function updateInvestment(id, payload) {
   await initCsrfToken();
@@ -459,7 +462,14 @@ export async function updateInvestment(id, payload) {
 }
 export async function sellInvestment(id, payload) {
   await initCsrfToken();
-  return await fetchFromApi(`/investments/${id}/`, { method: 'POST', body: JSON.stringify(payload) });
+  return await fetchFromApi(`/investments/${id}/`, {
+    method: 'POST',
+    body: JSON.stringify({ ...payload, link_to_balance: false, separate: true }),
+  });
+}
+export async function deleteInvestment(id) {
+  await initCsrfToken();
+  return await fetchFromApi(`/investments/${id}/`, { method: 'DELETE' });
 }
 
 // ─── Budgets & Recurring Expenses (Prompt 07) ───────────────────────────────

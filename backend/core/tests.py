@@ -1183,6 +1183,34 @@ class Prompt06SavingsInvestmentTests(APITestCase):
         self.account.refresh_from_db()
         self.assertEqual(self.account.cash_balance, Decimal('4450.00'))
 
+    def test_investment_separate_does_not_affect_main_balance(self):
+        initial_cash = self.account.cash_balance
+        initial_bank = self.account.bank_balance
+        purchase = self.client.post(reverse('investments'), {
+            'name': 'Gold Paytm', 'investment_type': 'GOLD', 'amount': '450.00',
+            'platform': 'Paytm', 'link_to_balance': False, 'separate': True
+        }, format='json')
+        self.assertEqual(purchase.status_code, status.HTTP_201_CREATED)
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.cash_balance, initial_cash)
+        self.assertEqual(self.account.bank_balance, initial_bank)
+        self.assertIsNone(purchase.json()['transaction'])
+
+    def test_delete_investment_asset(self):
+        purchase = self.client.post(reverse('investments'), {
+            'name': 'Gold Delete Test', 'investment_type': 'GOLD', 'amount': '500.00',
+            'platform': 'Paytm', 'link_to_balance': False
+        }, format='json')
+        self.assertEqual(purchase.status_code, status.HTTP_201_CREATED)
+        inv_id = purchase.json()['investment']['id']
+        list_resp = self.client.get(reverse('investments'))
+        self.assertEqual(Decimal(list_resp.json()['total_invested']), Decimal('500.00'))
+        del_resp = self.client.delete(reverse('investment_detail', kwargs={'pk': inv_id}))
+        self.assertEqual(del_resp.status_code, status.HTTP_200_OK)
+        list_resp2 = self.client.get(reverse('investments'))
+        self.assertEqual(Decimal(list_resp2.json()['total_invested']), Decimal('0.00'))
+        self.assertEqual(len(list_resp2.json()['investments']), 0)
+
     def test_cross_user_savings_access_denied(self):
         goal = self.client.post(reverse('savings_goals'), {'name': 'Private', 'target_amount': '100.00'}, format='json')
         other = User.objects.create_user(email='other@example.com', password='SecurePassword@123', full_name='Other')

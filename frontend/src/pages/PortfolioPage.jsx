@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Target, TrendingUp, Plus, ArrowDownToLine, ArrowUpFromLine, CheckCircle2 } from 'lucide-react';
+import { Target, TrendingUp, Plus, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, Trash2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
   actOnSavingsGoal,
   createInvestment,
   createSavingsGoal,
+  deleteInvestment,
   depositSavings,
   getInvestments,
   getSavings,
@@ -53,7 +54,6 @@ export default function PortfolioPage() {
     platform: '',
     purchase_date: todayStr(),
     note: '',
-    balance_type: 'BANK',
   });
   const [sale, setSale] = useState(null);
   const [error, setError] = useState('');
@@ -126,7 +126,7 @@ export default function PortfolioPage() {
           <div className="mt-4 text-3xl font-black text-slate-900">
             ₹{money(investments?.total_invested)}
           </div>
-          <p className="mt-1 text-xs text-slate-400">Remaining cost basis, not live valuation</p>
+          <p className="mt-1 text-xs text-slate-400">Tracked separately from Available Balance</p>
         </div>
       </section>
 
@@ -246,7 +246,12 @@ export default function PortfolioPage() {
 
       {/* Add Investment */}
       <section className="rounded-3xl bg-white p-5 shadow-sm border border-slate-100 space-y-4">
-        <h2 className="font-bold">Add investment</h2>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="font-bold">Add investment asset</h2>
+            <p className="text-xs text-slate-400">Tracked as a separate asset without touching your main wallet balance.</p>
+          </div>
+        </div>
         <form
           className="grid gap-3 sm:grid-cols-2"
           onSubmit={(e) => {
@@ -254,8 +259,8 @@ export default function PortfolioPage() {
             run(async () => {
               await createInvestment(investmentForm);
               setInvestmentForm({
-                ...investmentForm,
                 name: '',
+                investment_type: 'STOCKS',
                 amount: '',
                 platform: '',
                 note: '',
@@ -320,75 +325,94 @@ export default function PortfolioPage() {
       {/* Investment History */}
       <section className="rounded-3xl bg-white p-5 shadow-sm border border-slate-100 space-y-3">
         <h2 className="font-bold">Investment history</h2>
-        {(investments?.investments || []).map((i) => (
-          <div
-            key={i.id}
-            className={`rounded-xl border p-3 ${
-              i.is_closed ? 'bg-slate-50 text-slate-400' : 'border-slate-100'
-            }`}
-          >
-            <div className="flex justify-between text-sm font-bold">
-              <span>
-                {i.name} <span className="text-xs font-normal text-slate-400">({i.investment_type})</span>
-              </span>
-              <span>₹{money(i.cost_basis)}</span>
-            </div>
-            <div className="mt-1 flex justify-between text-xs text-slate-500">
-              <span>{i.platform || 'Direct'}</span>
-              {!i.is_closed && (
-                <button
-                  className="font-bold text-orange-600 hover:text-orange-700"
-                  onClick={() =>
-                    setSale({ id: i.id, max: i.cost_basis, proceeds: '', cost_basis_sold: '' })
-                  }
+        {(!investments?.investments || investments.investments.length === 0) ? (
+          <div className="rounded-2xl bg-slate-50 p-4 text-center text-sm text-slate-400">
+            No investments recorded yet.
+          </div>
+        ) : (
+          investments.investments.map((i) => (
+            <div
+              key={i.id}
+              className={`rounded-xl border p-3 ${
+                i.is_closed ? 'bg-slate-50 text-slate-400' : 'border-slate-100'
+              }`}
+            >
+              <div className="flex justify-between text-sm font-bold">
+                <span>
+                  {i.name} <span className="text-xs font-normal text-slate-400">({i.investment_type})</span>
+                </span>
+                <span>₹{money(i.cost_basis)}</span>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2 text-xs text-slate-500">
+                <span>{i.platform || 'Direct'} · {i.purchase_date}</span>
+                <div className="flex items-center gap-2">
+                  {!i.is_closed && (
+                    <button
+                      className="font-bold text-orange-600 hover:text-orange-700 px-2 py-1 rounded-lg hover:bg-orange-50 transition"
+                      onClick={() =>
+                        setSale({ id: i.id, max: i.cost_basis, proceeds: '', cost_basis_sold: '' })
+                      }
+                    >
+                      Record sale
+                    </button>
+                  )}
+                  <button
+                    className="font-bold text-rose-600 hover:text-rose-700 px-2 py-1 rounded-lg hover:bg-rose-50 transition flex items-center gap-1"
+                    title="Delete investment asset"
+                    onClick={() => {
+                      if (window.confirm(`Are you sure you want to delete ${i.name}?`)) {
+                        run(() => deleteInvestment(i.id));
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>Delete</span>
+                  </button>
+                </div>
+              </div>
+              {sale?.id === i.id && (
+                <form
+                  className="mt-3 grid grid-cols-2 gap-2"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    run(async () => {
+                      await sellInvestment(i.id, {
+                        cost_basis_sold: sale.cost_basis_sold,
+                        proceeds: sale.proceeds,
+                      });
+                      setSale(null);
+                    });
+                  }}
                 >
-                  Record sale
-                </button>
+                  <Field
+                    label="Cost basis sold"
+                    required
+                    type="number"
+                    min="0.01"
+                    step="any"
+                    max={sale.max}
+                    placeholder="0.00"
+                    value={sale.cost_basis_sold}
+                    onChange={(e) => setSale({ ...sale, cost_basis_sold: e.target.value })}
+                  />
+                  <Field
+                    label="Actual proceeds"
+                    required
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="0.00"
+                    value={sale.proceeds}
+                    onChange={(e) => setSale({ ...sale, proceeds: e.target.value })}
+                  />
+                  <button className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 transition col-span-2">
+                    Record Sale
+                  </button>
+                </form>
               )}
             </div>
-            {sale?.id === i.id && (
-              <form
-                className="mt-3 grid grid-cols-2 gap-2"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  run(async () => {
-                    await sellInvestment(i.id, {
-                      cost_basis_sold: sale.cost_basis_sold,
-                      proceeds: sale.proceeds,
-                      balance_type: 'BANK',
-                    });
-                    setSale(null);
-                  });
-                }}
-              >
-                <Field
-                  label="Cost basis sold"
-                  required
-                  type="number"
-                  min="0.01"
-                  step="any"
-                  max={sale.max}
-                  placeholder="0.00"
-                  value={sale.cost_basis_sold}
-                  onChange={(e) => setSale({ ...sale, cost_basis_sold: e.target.value })}
-                />
-                <Field
-                  label="Actual proceeds"
-                  required
-                  type="number"
-                  min="0"
-                  step="any"
-                  placeholder="0.00"
-                  value={sale.proceeds}
-                  onChange={(e) => setSale({ ...sale, proceeds: e.target.value })}
-                />
-                <button className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 transition col-span-2">
-                  Record Sale
-                </button>
-              </form>
-            )}
-          </div>
-        ))}
+          ))
+        )}
       </section>
     </div>
   );

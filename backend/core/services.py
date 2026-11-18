@@ -277,38 +277,64 @@ def execute_goal_action(goal_id, user, action, destination_balance_type=None):
 
 @transaction.atomic
 def execute_investment_purchase(user, account, name, investment_type, amount, platform, purchase_date=None, note='',
-                                balance_type=Transaction.BalanceType.BANK):
+                                balance_type=Transaction.BalanceType.BANK, link_to_balance=False):
     if amount <= Decimal('0.00'):
         raise ValidationError("Investment amount must be greater than zero.")
     locked_account = FinancialAccount.objects.select_for_update().get(pk=account.pk, user=user)
-    _debit_account(locked_account, amount, balance_type)
-    locked_account.save(update_fields=['cash_balance', 'bank_balance', 'updated_at'])
-    txn = Transaction.objects.create(account=locked_account, transaction_type=Transaction.TransactionType.INVESTMENT_PURCHASE,
-        amount=amount, balance_type=balance_type, note=f"Investment purchase: {name.strip()}", date=purchase_date or timezone.now().date())
+    txn = None
+    if link_to_balance and balance_type in [Transaction.BalanceType.CASH, Transaction.BalanceType.BANK]:
+        _debit_account(locked_account, amount, balance_type)
+        locked_account.save(update_fields=['cash_balance', 'bank_balance', 'updated_at'])
+        txn = Transaction.objects.create(account=locked_account, transaction_type=Transaction.TransactionType.INVESTMENT_PURCHASE,
+            amount=amount, balance_type=balance_type, note=f"Investment purchase: {name.strip()}", date=purchase_date or timezone.now().date())
     investment = Investment.objects.create(user=user, account=locked_account, name=name.strip(), investment_type=investment_type,
         cost_basis=amount, platform=platform.strip(), purchase_date=purchase_date or timezone.now().date(), note=note.strip())
     return investment, txn, locked_account
 
 
 @transaction.atomic
-def execute_investment_sale(investment_id, user, cost_basis_sold, proceeds, destination_balance_type, sale_date=None, note=''):
+def execute_investment_sale(investment_id, user, cost_basis_sold, proceeds, destination_balance_type=Transaction.BalanceType.BANK,
+                            sale_date=None, note='', link_to_balance=False):
     investment = Investment.objects.select_for_update().get(pk=investment_id, user=user)
     if cost_basis_sold <= Decimal('0.00') or proceeds < Decimal('0.00'):
         raise ValidationError("Sale amounts are invalid.")
     if investment.is_closed or cost_basis_sold > investment.cost_basis:
         raise ValidationError("Sale cost basis exceeds the remaining investment.")
     locked_account = FinancialAccount.objects.select_for_update().get(pk=investment.account_id, user=user)
-    _credit_account(locked_account, proceeds, destination_balance_type)
-    locked_account.save(update_fields=['cash_balance', 'bank_balance', 'updated_at'])
-    txn = Transaction.objects.create(account=locked_account, transaction_type=Transaction.TransactionType.INVESTMENT_SALE,
-        amount=proceeds, balance_type=destination_balance_type, note=f"Investment sale: {investment.name}", date=sale_date or timezone.now().date())
+    txn = None
+    if link_to_balance and destination_balance_type in [Transaction.BalanceType.CASH, Transaction.BalanceType.BANK]:
+        _credit_account(locked_account, proceeds, destination_balance_type)
+        locked_account.save(update_fields=['cash_balance', 'bank_balance', 'updated_at'])
+        txn = Transaction.objects.create(account=locked_account, transaction_type=Transaction.TransactionType.INVESTMENT_SALE,
+            amount=proceeds, balance_type=destination_balance_type, note=f"Investment sale: {investment.name}", date=sale_date or timezone.now().date())
+    else:
+        txn = Transaction.objects.create(
+            account=locked_account,
+            transaction_type=Transaction.TransactionType.INVESTMENT_SALE,
+            amount=Decimal('0.00'),
+            balance_type=destination_balance_type or Transaction.BalanceType.BANK,
+            note=f"Portfolio sale (separate): {investment.name}",
+            date=sale_date or timezone.now().date(),
+            is_voided=True
+        )
     sale = InvestmentSale.objects.create(investment=investment, cost_basis_sold=cost_basis_sold, proceeds=proceeds,
-        realized_gain_loss=proceeds - cost_basis_sold, destination_balance_type=destination_balance_type,
+        realized_gain_loss=proceeds - cost_basis_sold, destination_balance_type=destination_balance_type or Transaction.BalanceType.BANK,
         sale_date=sale_date or timezone.now().date(), note=note.strip(), transaction=txn)
     investment.cost_basis -= cost_basis_sold
     investment.is_closed = investment.cost_basis == Decimal('0.00')
     investment.save(update_fields=['cost_basis', 'is_closed', 'updated_at'])
     return sale, investment, txn, locked_account
+
+
+@transaction.atomic
+def execute_delete_investment(investment_id, user):
+    try:
+        investment = Investment.objects.select_for_update().get(pk=investment_id, user=user)
+    except Investment.DoesNotExist:
+        raise ValidationError("Investment not found.")
+    investment.sales.all().delete()
+    investment.delete()
+    return True
 
 
 @transaction.atomic

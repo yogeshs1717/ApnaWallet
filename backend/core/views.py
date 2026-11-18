@@ -86,6 +86,7 @@ from .services import (
     execute_goal_action,
     execute_investment_purchase,
     execute_investment_sale,
+    execute_delete_investment,
     execute_savings_deposit,
     execute_savings_goal,
     execute_savings_withdrawal,
@@ -959,36 +960,60 @@ def investments_view(request):
         total = sum((i.cost_basis for i in investments), Decimal('0.00'))
         return Response({'total_invested': f'{total:.2f}', 'investments': InvestmentSerializer(investments, many=True).data})
     data = request.data
+    link_to_balance = data.get('link_to_balance')
+    if link_to_balance is None:
+        link_to_balance = bool(data.get('balance_type')) and not bool(data.get('separate'))
     try:
-        investment, txn, account = execute_investment_purchase(request.user, resolve_target_account(request.user, data.get('account_id')),
+        investment, txn, account = execute_investment_purchase(
+            request.user, resolve_target_account(request.user, data.get('account_id')),
             data['name'], data['investment_type'], Decimal(str(data['amount'])), data['platform'],
-            data.get('purchase_date'), data.get('note', ''), data.get('balance_type', 'BANK'))
+            data.get('purchase_date'), data.get('note', ''), data.get('balance_type', 'BANK'),
+            link_to_balance=link_to_balance
+        )
     except (DjangoValidationError, KeyError, ValueError, TypeError, FinancialAccount.DoesNotExist) as err:
         return Response({'detail': err.messages[0] if hasattr(err, 'messages') else str(err)}, status=status.HTTP_400_BAD_REQUEST)
-    return Response({'investment': InvestmentSerializer(investment).data, 'account': FinancialAccountSerializer(account).data,
-                     'transaction': TransactionSerializer(txn).data}, status=status.HTTP_201_CREATED)
+    return Response({
+        'investment': InvestmentSerializer(investment).data,
+        'account': FinancialAccountSerializer(account).data,
+        'transaction': TransactionSerializer(txn).data if txn else None
+    }, status=status.HTTP_201_CREATED)
 
 
-@api_view(['PATCH', 'POST'])
+@api_view(['PATCH', 'POST', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def investment_detail_view(request, pk):
     try:
         investment = Investment.objects.get(pk=pk, user=request.user)
     except Investment.DoesNotExist:
         return Response({'detail': 'Investment not found.'}, status=status.HTTP_404_NOT_FOUND)
+    if request.method == 'DELETE':
+        execute_delete_investment(pk, request.user)
+        return Response({'detail': 'Investment deleted successfully.'}, status=status.HTTP_200_OK)
     if request.method == 'PATCH':
         for field in ['name', 'investment_type', 'platform', 'purchase_date', 'note']:
             if field in request.data:
                 setattr(investment, field, request.data[field])
         investment.save()
         return Response(InvestmentSerializer(investment).data)
+    data = request.data
+    link_to_balance = data.get('link_to_balance')
+    if link_to_balance is None:
+        link_to_balance = bool(data.get('balance_type')) and not bool(data.get('separate'))
     try:
-        sale, investment, txn, account = execute_investment_sale(pk, request.user, Decimal(str(request.data['cost_basis_sold'])),
-            Decimal(str(request.data['proceeds'])), request.data['balance_type'], request.data.get('sale_date'), request.data.get('note', ''))
+        sale, investment, txn, account = execute_investment_sale(
+            pk, request.user, Decimal(str(request.data['cost_basis_sold'])),
+            Decimal(str(request.data['proceeds'])), request.data.get('balance_type', 'BANK'),
+            request.data.get('sale_date'), request.data.get('note', ''),
+            link_to_balance=link_to_balance
+        )
     except (DjangoValidationError, KeyError, ValueError, TypeError, Investment.DoesNotExist) as err:
         return Response({'detail': err.messages[0] if hasattr(err, 'messages') else str(err)}, status=status.HTTP_400_BAD_REQUEST)
-    return Response({'sale': InvestmentSaleSerializer(sale).data, 'investment': InvestmentSerializer(investment).data,
-                     'account': FinancialAccountSerializer(account).data, 'transaction': TransactionSerializer(txn).data})
+    return Response({
+        'sale': InvestmentSaleSerializer(sale).data,
+        'investment': InvestmentSerializer(investment).data,
+        'account': FinancialAccountSerializer(account).data,
+        'transaction': TransactionSerializer(txn).data if txn else None
+    })
 
 
 def _budget_month(value):
