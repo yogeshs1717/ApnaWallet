@@ -8,7 +8,7 @@ export default function AppLayout({ activeTab, onSelectTab, onOpenExpense, child
       <Navbar activeTab={activeTab} onSelectTab={onSelectTab} onOpenExpense={onOpenExpense} />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 mb-16 md:mb-0">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-8 overflow-x-hidden">
         {children}
       </main>
 

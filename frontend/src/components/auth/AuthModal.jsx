@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { requestPasswordReset, confirmPasswordReset } from '../../api/client';
 import logoImg from '../../assets/logo.jpg';
@@ -18,6 +18,8 @@ import {
 export default function AuthModal({ initialView = 'login', initialUid = '', initialToken = '', onClose }) {
   const { login, register } = useAuth();
   const [view, setView] = useState(initialView); // 'login' | 'register' | 'forgot' | 'reset'
+  const modalRef = useRef(null);
+  const emailRef = useRef(null);
 
   // Form states
   const [fullName, setFullName] = useState('');
@@ -25,13 +27,22 @@ export default function AuthModal({ initialView = 'login', initialUid = '', init
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [uid, setUid] = useState(initialUid);
-  const [token, setToken] = useState(initialToken);
+  const [uid] = useState(initialUid);
+  const [token] = useState(initialToken);
 
   // Status states
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') onClose?.();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    emailRef.current?.focus();
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose, view]);
 
   const clearMessages = () => {
     setErrorMessage('');
@@ -82,19 +93,19 @@ export default function AuthModal({ initialView = 'login', initialUid = '', init
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
       
       {/* Backdrop tap to close */}
       <div className="fixed inset-0 -z-10" onClick={onClose} />
 
       {/* Modal Sheet / Dialog */}
-      <div className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-amber-100/80 overflow-hidden max-h-[92vh] flex flex-col animate-in slide-in-from-bottom sm:zoom-in-95 duration-200">
+      <div ref={modalRef} className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-amber-100/80 overflow-hidden max-h-[92vh] sm:max-h-[90vh] flex flex-col animate-in slide-in-from-bottom sm:zoom-in-95 duration-200">
         
         {/* Header Bar */}
         <div className="relative px-6 pt-6 pb-4 border-b border-amber-100/60 bg-gradient-to-b from-amber-50/50 to-white">
           <button
             onClick={onClose}
-            className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            className="absolute top-5 right-5 min-h-11 min-w-11 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
             aria-label="Close modal"
           >
             <X className="w-5 h-5" />
@@ -105,7 +116,7 @@ export default function AuthModal({ initialView = 'login', initialUid = '', init
               <img src={logoImg} alt="ApnaWallet" className="w-full h-full object-cover" />
             </div>
             <div>
-              <h3 className="text-lg font-extrabold text-slate-900 tracking-tight">
+              <h3 id="auth-modal-title" className="text-lg font-extrabold text-slate-900 tracking-tight">
                 {view === 'login' && 'Welcome Back'}
                 {view === 'register' && 'Create Your Wallet'}
                 {view === 'forgot' && 'Reset Password'}
@@ -126,7 +137,7 @@ export default function AuthModal({ initialView = 'login', initialUid = '', init
           
           {/* Error Message Alert */}
           {errorMessage && (
-            <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs animate-in fade-in">
+            <div role="alert" className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs animate-in fade-in">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <div className="flex-1 font-medium">{errorMessage}</div>
             </div>
@@ -134,7 +145,7 @@ export default function AuthModal({ initialView = 'login', initialUid = '', init
 
           {/* Success Message Alert */}
           {successMessage && (
-            <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs animate-in fade-in">
+            <div role="status" className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs animate-in fade-in">
               <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
               <div className="flex-1 font-medium">{successMessage}</div>
             </div>
@@ -171,6 +182,7 @@ export default function AuthModal({ initialView = 'login', initialUid = '', init
                 <div className="relative">
                   <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
+                            ref={view === 'register' ? null : emailRef}
                     type="email"
                     required
                     value={email}

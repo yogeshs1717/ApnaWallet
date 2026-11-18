@@ -71,7 +71,7 @@ export default function NotificationCenter({ onNavigate, onOpenExpense }) {
 
   return <>
     <div className="relative">
-      <button onClick={() => setOpen((value) => !value)} className="relative rounded-xl p-2 text-slate-500 hover:bg-amber-50 hover:text-orange-600" aria-label="Notifications">
+      <button onClick={() => setOpen((value) => !value)} className="relative min-h-11 min-w-11 rounded-xl p-2 text-slate-500 hover:bg-amber-50 hover:text-orange-600" aria-label="Notifications">
         <Bell className="h-5 w-5" />
         {unreadCount > 0 && <span className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-4 text-white">{unreadCount > 9 ? '9+' : unreadCount}</span>}
       </button>
@@ -84,7 +84,22 @@ export default function NotificationCenter({ onNavigate, onOpenExpense }) {
         </div>
       </div>}
     </div>
-    {dailyReminder && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 p-4"><div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl"><div className="mb-4 flex items-center justify-between"><span className="rounded-xl bg-orange-50 p-2 text-orange-600"><Bell className="h-5 w-5" /></span><button onClick={() => respondDaily('close')} className="rounded-lg p-1 text-slate-400"><X className="h-5 w-5" /></button></div><h2 className="text-xl font-black text-slate-900">Today's expense update, please!</h2><p className="mt-2 text-sm text-slate-500">Keep your ledger current, or dismiss this reminder for today.</p><div className="mt-6 grid gap-2"><button onClick={() => respondDaily('updated')} className="rounded-xl bg-orange-500 px-4 py-3 text-sm font-bold text-white">Updated</button><button onClick={() => respondDaily('no_change')} className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700">No change</button></div></div></div>}
+    {dailyReminder && (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 p-4" role="dialog" aria-modal="true" aria-labelledby="daily-reminder-title">
+        <div className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl sm:p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <span className="rounded-xl bg-orange-50 p-2 text-orange-600"><Bell className="h-5 w-5" /></span>
+            <button onClick={() => respondDaily('close')} className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-400" aria-label="Close reminder"><X className="h-5 w-5" /></button>
+          </div>
+          <h2 id="daily-reminder-title" className="text-xl font-black text-slate-900">Today's expense update, please!</h2>
+          <p className="mt-2 text-sm text-slate-500">Keep your ledger current, or dismiss this reminder for today.</p>
+          <div className="mt-6 grid gap-2">
+            <button onClick={() => respondDaily('updated')} className="min-h-11 rounded-xl bg-orange-500 px-4 py-3 text-sm font-bold text-white">Updated</button>
+            <button onClick={() => respondDaily('no_change')} className="min-h-11 rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700">No change</button>
+          </div>
+        </div>
+      </div>
+    )}
   </>;
 }
 
