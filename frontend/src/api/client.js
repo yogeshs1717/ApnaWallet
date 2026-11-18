@@ -53,7 +53,7 @@ export async function fetchFromApi(endpoint, options = {}) {
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout for Neon cold starts
 
     const response = await fetch(url, {
       ...config,
@@ -537,4 +537,47 @@ export async function respondToDailyReminder(response) {
     method: 'POST',
     body: JSON.stringify({ response }),
   });
+}
+
+// ─── Financial Reports (Prompt 09) ───────────────────────────────────────
+export async function getReportSummary(params = {}) {
+  const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== ''))).toString();
+  return await fetchFromApi(`/reports/summary/${qs ? `?${qs}` : ''}`);
+}
+
+export async function getReportCategories(params = {}) {
+  const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== ''))).toString();
+  return await fetchFromApi(`/reports/categories/${qs ? `?${qs}` : ''}`);
+}
+
+export async function getReportTrends(params = {}) {
+  const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== ''))).toString();
+  return await fetchFromApi(`/reports/trends/${qs ? `?${qs}` : ''}`);
+}
+
+async function downloadReport(endpoint, params, fallbackName) {
+  const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== ''))).toString();
+  const url = `${API_BASE_URL}${endpoint}${qs ? `?${qs}` : ''}`;
+  const response = await fetch(url, { credentials: 'include' });
+  if (!response.ok) throw new Error(`Report export failed (${response.status})`);
+  const blob = await response.blob();
+  const disposition = response.headers.get('content-disposition') || '';
+  const match = disposition.match(/filename="?([^";]+)"?/i);
+  const filename = match?.[1] || fallbackName;
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(objectUrl);
+}
+
+export async function downloadReportCsv(params = {}) {
+  await downloadReport('/reports/export/csv/', params, 'apnawallet-transactions.csv');
+}
+
+export async function downloadReportPdf(params = {}) {
+  await downloadReport('/reports/export/pdf/', params, 'apnawallet-report.pdf');
 }

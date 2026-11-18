@@ -40,6 +40,11 @@ from .views import (
     notification_read_view,
     notification_dismiss_view,
     daily_notification_response_view,
+    report_summary_view,
+    report_categories_view,
+    report_trends_view,
+    report_csv_export_view,
+    report_pdf_export_view,
 )
 
 urlpatterns = [
@@ -100,6 +105,13 @@ urlpatterns = [
     path('notifications/<uuid:pk>/read/', notification_read_view, name='notification_read'),
     path('notifications/<uuid:pk>/dismiss/', notification_dismiss_view, name='notification_dismiss'),
     path('notifications/daily-response/', daily_notification_response_view, name='daily_notification_response'),
+
+    # Financial reports and exports (Prompt 09)
+    path('reports/summary/', report_summary_view, name='report_summary'),
+    path('reports/categories/', report_categories_view, name='report_categories'),
+    path('reports/trends/', report_trends_view, name='report_trends'),
+    path('reports/export/csv/', report_csv_export_view, name='report_csv_export'),
+    path('reports/export/pdf/', report_pdf_export_view, name='report_pdf_export'),
 
     # Password Recovery
     path('auth/password-reset/', password_reset_request_view, name='password_reset_request'),

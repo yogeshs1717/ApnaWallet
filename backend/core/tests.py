@@ -1392,3 +1392,144 @@ class Prompt08NotificationTests(APITestCase):
         )
         response = self.client.post(reverse('notification_read', kwargs={'pk': notification.id}), format='json')
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class Prompt09ReportTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email='report@example.com', password='SecurePassword@123', full_name='Report User')
+        self.other_user = User.objects.create_user(email='report-other@example.com', password='SecurePassword@123', full_name='Other')
+        self.account = FinancialAccount.objects.create(
+            user=self.user, name='Personal', is_default=True,
+            cash_balance=Decimal('5000.00'), bank_balance=Decimal('3000.00')
+        )
+        self.other_account = FinancialAccount.objects.create(
+            user=self.other_user, name='Private', is_default=True,
+            cash_balance=Decimal('9000.00'), bank_balance=Decimal('9000.00')
+        )
+        self.category = Category.objects.create(name='Report Food', icon='Utensils', color='#f97316')
+        self.today = user_local_date(self.user)
+        self.client.force_login(self.user)
+
+    def create_txn(self, kind, amount, date=None, category=None, note='Report transaction'):
+        return Transaction.objects.create(
+            account=self.account,
+            transaction_type=kind,
+            amount=Decimal(amount),
+            balance_type=Transaction.BalanceType.CASH,
+            category=category,
+            note=note,
+            date=date or self.today,
+        )
+
+    def test_rpt_01_02_03_period_totals(self):
+        self.create_txn(Transaction.TransactionType.ADD_CASH, '1000.00')
+        self.create_txn(Transaction.TransactionType.EXPENSE, '250.00', category=self.category)
+        response = self.client.get(reverse('report_summary'), {
+            'account_id': str(self.account.id), 'period': 'daily'
+        })
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(Decimal(str(response.data['income'])), Decimal('1000.00'))
+        self.assertEqual(Decimal(str(response.data['expenses'])), Decimal('250.00'))
+        for period in ('monthly', 'yearly'):
+            response = self.client.get(reverse('report_summary'), {
+                'account_id': str(self.account.id), 'period': period
+            })
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_rpt_04_category_spending(self):
+        self.create_txn(Transaction.TransactionType.EXPENSE, '175.50', category=self.category)
+        response = self.client.get(reverse('report_categories'), {'account_id': str(self.account.id), 'period': 'monthly'})
+        row = next(item for item in response.data['categories'] if item['name'] == 'Report Food')
+        self.assertEqual(Decimal(str(row['amount'])), Decimal('175.50'))
+
+    def test_rpt_05_excludes_transfers(self):
+        self.create_txn(Transaction.TransactionType.TRANSFER, '400.00', note='Cash to bank')
+        response = self.client.get(reverse('report_summary'), {'account_id': str(self.account.id), 'period': 'monthly'})
+        self.assertEqual(Decimal(str(response.data['income'])), Decimal('0.00'))
+        self.assertEqual(Decimal(str(response.data['expenses'])), Decimal('0.00'))
+
+    def test_rpt_06_excludes_lending_credit_movements(self):
+        for kind in (
+            Transaction.TransactionType.LENDING,
+            Transaction.TransactionType.LENDING_REPAYMENT,
+            Transaction.TransactionType.CREDIT,
+            Transaction.TransactionType.CREDIT_REPAYMENT,
+        ):
+            self.create_txn(kind, '300.00')
+        response = self.client.get(reverse('report_summary'), {'account_id': str(self.account.id), 'period': 'monthly'})
+        self.assertEqual(Decimal(str(response.data['income'])), Decimal('0.00'))
+        self.assertEqual(Decimal(str(response.data['expenses'])), Decimal('0.00'))
+
+    def test_rpt_07_excludes_savings_and_investment_purchases(self):
+        for kind in (
+            Transaction.TransactionType.SAVINGS_ALLOCATION,
+            Transaction.TransactionType.SAVINGS_WITHDRAWAL,
+            Transaction.TransactionType.INVESTMENT_PURCHASE,
+        ):
+            self.create_txn(kind, '500.00')
+        response = self.client.get(reverse('report_summary'), {'account_id': str(self.account.id), 'period': 'monthly'})
+        self.assertEqual(Decimal(str(response.data['expenses'])), Decimal('0.00'))
+
+    def test_rpt_08_voided_transaction_is_excluded(self):
+        txn = self.create_txn(Transaction.TransactionType.EXPENSE, '999.00', category=self.category)
+        txn.is_voided = True
+        txn.save(update_fields=['is_voided'])
+        response = self.client.get(reverse('report_summary'), {'account_id': str(self.account.id), 'period': 'monthly'})
+        self.assertEqual(Decimal(str(response.data['expenses'])), Decimal('0.00'))
+
+    def test_rpt_09_account_and_date_filters(self):
+        self.create_txn(Transaction.TransactionType.ADD_CASH, '111.00', date=self.today)
+        response = self.client.get(reverse('report_summary'), {
+            'account_id': str(self.account.id),
+            'date_from': self.today.isoformat(),
+            'date_to': self.today.isoformat(),
+        })
+        self.assertEqual(Decimal(str(response.data['income'])), Decimal('111.00'))
+
+    def test_rpt_10_cross_user_isolation(self):
+        other_txn = Transaction.objects.create(
+            account=self.other_account,
+            transaction_type=Transaction.TransactionType.ADD_CASH,
+            amount=Decimal('7777.00'),
+            balance_type=Transaction.BalanceType.CASH,
+            note='Private transaction',
+            date=self.today,
+        )
+        response = self.client.get(reverse('report_summary'), {'account_id': str(self.other_account.id)})
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertTrue(Transaction.objects.filter(pk=other_txn.pk).exists())
+
+    def test_rpt_11_csv_matches_filtered_records(self):
+        self.create_txn(Transaction.TransactionType.EXPENSE, '125.25', category=self.category, note='Filtered lunch')
+        response = self.client.get(reverse('report_csv_export'), {
+            'account_id': str(self.account.id),
+            'period': 'monthly',
+            'expense_only': 'true',
+        })
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        content = response.content.decode('utf-8-sig')
+        self.assertIn('Filtered lunch', content)
+        self.assertIn('125.25', content)
+
+    def test_rpt_12_csv_formula_injection_is_neutralized(self):
+        self.create_txn(Transaction.TransactionType.EXPENSE, '10.00', category=self.category, note='=SUM(1,2)')
+        response = self.client.get(reverse('report_csv_export'), {'account_id': str(self.account.id), 'period': 'monthly'})
+        content = response.content.decode('utf-8-sig')
+        self.assertIn("'=SUM(1,2)", content)
+
+    def test_rpt_13_pdf_is_valid_and_authoritative(self):
+        self.create_txn(Transaction.TransactionType.ADD_CASH, '999.00')
+        response = self.client.get(reverse('report_pdf_export'), {'account_id': str(self.account.id), 'period': 'monthly'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        self.assertTrue(response.content.startswith(b'%PDF'))
+
+    def test_rpt_14_empty_report_period(self):
+        old_date = self.today.replace(year=max(2000, self.today.year - 5))
+        response = self.client.get(reverse('report_summary'), {
+            'account_id': str(self.account.id),
+            'date_from': old_date.isoformat(),
+            'date_to': old_date.isoformat(),
+        })
+        self.assertEqual(Decimal(str(response.data['income'])), Decimal('0.00'))
+        self.assertEqual(Decimal(str(response.data['expenses'])), Decimal('0.00'))

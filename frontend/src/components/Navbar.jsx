@@ -10,6 +10,7 @@ import {
   Briefcase,
   BarChart3,
   MoreHorizontal,
+  WalletCards,
   LogOut,
   User as UserIcon,
   LogIn
@@ -26,6 +27,7 @@ export default function Navbar({ activeTab = 'home', onSelectTab, onOpenExpense 
     { id: 'credit', label: 'Credit', icon: CreditCard },
     { id: 'portfolio', label: 'Portfolio', icon: Briefcase },
     { id: 'reports', label: 'Reports', icon: BarChart3 },
+    { id: 'budgets', label: 'Budgets', icon: WalletCards },
     { id: 'more', label: 'More', icon: MoreHorizontal },
   ];
 
@@ -36,7 +38,7 @@ export default function Navbar({ activeTab = 'home', onSelectTab, onOpenExpense 
     { id: 'lending', label: 'Lend', icon: HandCoins },
     { id: 'credit', label: 'Credit', icon: CreditCard },
     { id: 'portfolio', label: 'Portfolio', icon: Briefcase },
-    { id: 'more', label: 'More', icon: MoreHorizontal },
+    { id: 'reports', label: 'Reports', icon: BarChart3 },
   ];
 
   return (

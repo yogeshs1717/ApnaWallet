@@ -93,6 +93,7 @@ from .services import (
     generate_notifications,
     user_local_date,
 )
+from .reporting import build_report, build_trends, build_csv_report, build_pdf_report
 
 
 class PasswordResetThrottle(AnonRateThrottle):
@@ -1256,3 +1257,68 @@ def daily_notification_response_view(request):
     notification.dismissed_on = today
     notification.save(update_fields=['is_read', 'dismissed_on', 'updated_at'])
     return Response({'message': 'Daily reminder response saved.'})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def report_summary_view(request):
+    account_id = request.query_params.get('account_id')
+    if account_id:
+        try:
+            FinancialAccount.objects.get(pk=account_id, user=request.user)
+        except FinancialAccount.DoesNotExist:
+            return Response({'detail': 'Financial account not found.'}, status=status.HTTP_404_NOT_FOUND)
+    return Response(build_report(request.user, request.query_params))
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def report_categories_view(request):
+    account_id = request.query_params.get('account_id')
+    if account_id:
+        try:
+            FinancialAccount.objects.get(pk=account_id, user=request.user)
+        except FinancialAccount.DoesNotExist:
+            return Response({'detail': 'Financial account not found.'}, status=status.HTTP_404_NOT_FOUND)
+    report = build_report(request.user, request.query_params)
+    return Response({
+        'date_from': report['date_from'],
+        'date_to': report['date_to'],
+        'categories': report['categories'],
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def report_trends_view(request):
+    account_id = request.query_params.get('account_id')
+    if account_id:
+        try:
+            FinancialAccount.objects.get(pk=account_id, user=request.user)
+        except FinancialAccount.DoesNotExist:
+            return Response({'detail': 'Financial account not found.'}, status=status.HTTP_404_NOT_FOUND)
+    return Response(build_trends(request.user, request.query_params))
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def report_csv_export_view(request):
+    account_id = request.query_params.get('account_id')
+    if account_id:
+        try:
+            FinancialAccount.objects.get(pk=account_id, user=request.user)
+        except FinancialAccount.DoesNotExist:
+            return Response({'detail': 'Financial account not found.'}, status=status.HTTP_404_NOT_FOUND)
+    return build_csv_report(request.user, request.query_params)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def report_pdf_export_view(request):
+    account_id = request.query_params.get('account_id')
+    if account_id:
+        try:
+            FinancialAccount.objects.get(pk=account_id, user=request.user)
+        except FinancialAccount.DoesNotExist:
+            return Response({'detail': 'Financial account not found.'}, status=status.HTTP_404_NOT_FOUND)
+    return build_pdf_report(request.user, request.query_params)
