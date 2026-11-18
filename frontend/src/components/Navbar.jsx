@@ -39,6 +39,7 @@ export default function Navbar({ activeTab = 'home', onSelectTab, onOpenExpense 
     { id: 'credit', label: 'Credit', icon: CreditCard },
     { id: 'portfolio', label: 'Portfolio', icon: Briefcase },
     { id: 'reports', label: 'Reports', icon: BarChart3 },
+    { id: 'budgets', label: 'Budgets', icon: WalletCards },
   ];
 
   return (
