@@ -35,7 +35,7 @@ const TYPE_CONFIG = {
   CREDIT_REPAYMENT:  { label: 'Debt Repaid', color: 'bg-purple-100 text-purple-800', Icon: CheckCircle,   sign: '-', amtColor: 'text-purple-700' },
 };
 const BAL_ICON = { CASH: Wallet, BANK: Landmark };
-const PAGE_SIZE = 15;
+const PAGE_SIZE = 100;
 
 function formatDate(dateStr) {
   if (!dateStr) return '';

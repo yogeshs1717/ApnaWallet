@@ -426,7 +426,8 @@ def transaction_list_view(request):
 
     # Simple pagination
     total_count = queryset.count()
-    limit = int(request.query_params.get('limit', 20))
+    limit = int(request.query_params.get('limit', 100))
+    limit = max(1, min(limit, 500))
     offset = int(request.query_params.get('offset', 0))
     page_items = queryset[offset:offset + limit]
 

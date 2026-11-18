@@ -284,8 +284,9 @@ export async function voidTransaction(transactionId) {
  * @param {number} [params.offset]        default 0
  */
 export async function getTransactions(params = {}) {
+  const merged = { limit: 100, ...params };
   const cleanParams = Object.fromEntries(
-    Object.entries(params).filter(([, v]) => v !== '' && v !== null && v !== undefined)
+    Object.entries(merged).filter(([, v]) => v !== '' && v !== null && v !== undefined)
   );
   const qs = new URLSearchParams(cleanParams).toString();
   return await fetchFromApi(`/transactions/${qs ? `?${qs}` : ''}`);
