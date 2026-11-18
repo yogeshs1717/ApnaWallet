@@ -204,7 +204,6 @@ def build_trends(user, params):
         transactions = transactions.filter(category_id=category_id)
 
     if period == 'yearly':
-        bucket_count = 12
         points = []
         for month_number in range(1, 13):
             month_start = date(start.year, month_number, 1)
@@ -219,7 +218,6 @@ def build_trends(user, params):
         return {'period': period, 'points': points}
 
     if period == 'monthly':
-        bucket_count = (end - start).days + 1
         points = []
         current = start
         while current <= end:
@@ -244,7 +242,7 @@ def _csv_value(value):
 
 
 def build_csv_report(user, params):
-    period, start, end = resolve_report_period(user, params)
+    _, start, end = resolve_report_period(user, params)
     account = resolve_account(user, params.get('account_id'))
     transactions = Transaction.objects.filter(
         account__user=user,
