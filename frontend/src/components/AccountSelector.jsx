@@ -17,7 +17,7 @@ export default function AccountSelector({
     <div className="relative inline-block text-left">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-amber-200/80 shadow-xs hover:border-amber-300 text-slate-800 text-sm font-semibold transition-all focus:outline-hidden cursor-pointer"
+        className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-amber-200/80 bg-white px-3.5 py-2 text-sm font-semibold text-slate-800 shadow-xs transition-all hover:border-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 cursor-pointer"
         aria-expanded={isOpen}
       >
         <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center text-white shadow-xs">
@@ -53,7 +53,7 @@ export default function AccountSelector({
                     onSelectAccount?.(acc);
                     setIsOpen(false);
                   }}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-xs transition-colors cursor-pointer ${
+                  className={`flex min-h-11 w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 cursor-pointer ${
                     acc.id === selectedAccount?.id ? 'bg-amber-50/80 text-orange-950 font-bold' : 'hover:bg-slate-50 text-slate-800'
                   }`}
                 >
