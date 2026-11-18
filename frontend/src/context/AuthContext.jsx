@@ -18,7 +18,7 @@ export function AuthProvider({ children }) {
   const [authView, setAuthView] = useState(null); // 'login' | 'register' | 'forgot' | 'reset' | null
 
   // Refresh profile and accounts from backend
-  const refreshUserData = async () => {
+  const refreshUserData = async ({ preserveUser = false } = {}) => {
     try {
       await initCsrfToken();
       const profile = await getCurrentUserProfile();
@@ -31,9 +31,11 @@ export function AuthProvider({ children }) {
       setSelectedAccount(defaultAcc);
       return profile;
     } catch {
-      setUser(null);
-      setAccounts([]);
-      setSelectedAccount(null);
+      if (!preserveUser) {
+        setUser(null);
+        setAccounts([]);
+        setSelectedAccount(null);
+      }
       return null;
     } finally {
       setLoading(false);
@@ -46,14 +48,20 @@ export function AuthProvider({ children }) {
 
   const login = async ({ email, password }) => {
     const res = await loginUser({ email, password });
-    await refreshUserData();
+    if (res?.user) {
+      setUser(res.user);
+    }
+    await refreshUserData({ preserveUser: true });
     setAuthView(null);
     return res;
   };
 
   const register = async ({ full_name, email, password }) => {
     const res = await registerUser({ full_name, email, password });
-    await refreshUserData();
+    if (res?.user) {
+      setUser(res.user);
+    }
+    await refreshUserData({ preserveUser: true });
     setAuthView(null);
     return res;
   };
