@@ -17,18 +17,41 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [authView, setAuthView] = useState(null); // 'login' | 'register' | 'forgot' | 'reset' | null
 
-  // Refresh profile and accounts from backend
-  const refreshUserData = async ({ preserveUser = false } = {}) => {
+  // Update account balance locally in memory for instant 0ms UI response
+  const updateAccountLocally = (updatedAccount) => {
+    if (!updatedAccount) return;
+    setAccounts(prev => prev.map(a => a.id === updatedAccount.id ? updatedAccount : a));
+    setSelectedAccount(prev => (prev?.id === updatedAccount.id ? updatedAccount : prev));
+  };
+
+  // Refresh profile and accounts from backend in parallel
+  const refreshUserData = async ({ preserveUser = false, onlyAccounts = false } = {}) => {
     try {
       await initCsrfToken();
-      const profile = await getCurrentUserProfile();
+
+      if (onlyAccounts && user) {
+        // Fast path: user profile already known, only update financial accounts
+        const userAccounts = await getFinancialAccounts();
+        setAccounts(userAccounts);
+        setSelectedAccount(prev => {
+          if (!prev) return userAccounts.find(a => a.is_default) || userAccounts[0] || null;
+          return userAccounts.find(a => a.id === prev.id) || userAccounts.find(a => a.is_default) || userAccounts[0] || null;
+        });
+        return user;
+      }
+
+      // Parallel fetch for profile and accounts
+      const [profile, userAccounts] = await Promise.all([
+        getCurrentUserProfile(),
+        getFinancialAccounts()
+      ]);
+
       setUser(profile);
-
-      const userAccounts = await getFinancialAccounts();
       setAccounts(userAccounts);
-
-      const defaultAcc = userAccounts.find(a => a.is_default) || userAccounts[0] || null;
-      setSelectedAccount(defaultAcc);
+      setSelectedAccount(prev => {
+        if (!prev) return userAccounts.find(a => a.is_default) || userAccounts[0] || null;
+        return userAccounts.find(a => a.id === prev.id) || userAccounts.find(a => a.is_default) || userAccounts[0] || null;
+      });
       return profile;
     } catch {
       if (!preserveUser) {
@@ -82,6 +105,7 @@ export function AuthProvider({ children }) {
       accounts,
       selectedAccount,
       setSelectedAccount,
+      updateAccountLocally,
       isAuthenticated: !!user,
       loading,
       authView,

@@ -83,12 +83,14 @@ export default function CreditPage() {
     fetchCredits();
   }, [fetchCredits]);
 
-  async function handleOpSuccess() {
-    await refreshUserData();
-    fetchCredits();
+  function handleOpSuccess(updatedAccount) {
     setActiveModal(null);
     setRepayTarget(null);
     setEditDateTarget(null);
+    Promise.all([
+      refreshUserData({ preserveUser: true, onlyAccounts: true }),
+      fetchCredits()
+    ]);
   }
 
   async function handleSaveDueDate(e) {

@@ -12,7 +12,7 @@ import LendModal from './transactions/LendModal';
 import CreditModal from './transactions/CreditModal';
 
 export default function QuickActions({ expenseOpenSignal, onTransactionSuccess }) {
-  const { selectedAccount, refreshUserData, isAuthenticated, setAuthView } = useAuth();
+  const { selectedAccount, refreshUserData, updateAccountLocally, isAuthenticated, setAuthView } = useAuth();
   const [activeModal, setActiveModal] = useState(null); // 'add-cash' | 'expense' | 'transfer' | 'lend' | 'credit' | null
 
   useEffect(() => {
@@ -68,11 +68,14 @@ export default function QuickActions({ expenseOpenSignal, onTransactionSuccess }
     setActiveModal(action.id);
   }
 
-  // Called when a modal reports success; refreshes live balances in AuthContext
-  async function handleSuccess(updatedAccount, _record) {
-    await refreshUserData();
+  // Called when a modal reports success; updates balance instantly and closes modal
+  function handleSuccess(updatedAccount, _record) {
+    if (updatedAccount && updateAccountLocally) {
+      updateAccountLocally(updatedAccount);
+    }
     setActiveModal(null);
     if (onTransactionSuccess) onTransactionSuccess();
+    refreshUserData({ preserveUser: true, onlyAccounts: true });
   }
 
   return (

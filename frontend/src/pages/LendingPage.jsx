@@ -81,12 +81,14 @@ export default function LendingPage() {
     fetchLendings();
   }, [fetchLendings]);
 
-  async function handleOpSuccess() {
-    await refreshUserData();
-    fetchLendings();
+  function handleOpSuccess(updatedAccount) {
     setActiveModal(null);
     setRepayTarget(null);
     setAdjustTarget(null);
+    Promise.all([
+      refreshUserData({ preserveUser: true, onlyAccounts: true }),
+      fetchLendings()
+    ]);
   }
 
   return (

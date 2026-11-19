@@ -11,10 +11,51 @@ import BudgetsPage from './pages/BudgetsPage';
 import ReportsPage from './pages/ReportsPage';
 import AuthModal from './components/auth/AuthModal';
 
+const VALID_TABS = ['home', 'activity', 'lending', 'credit', 'portfolio', 'reports', 'budgets', 'more'];
+
+function getInitialTab() {
+  if (typeof window !== 'undefined') {
+    const hash = window.location.hash.replace(/^#\/?/, '').toLowerCase();
+    if (VALID_TABS.includes(hash)) {
+      return hash;
+    }
+    const saved = localStorage.getItem('apna_active_tab');
+    if (VALID_TABS.includes(saved)) {
+      return saved;
+    }
+  }
+  return 'home';
+}
+
 function MainApp() {
-  const [activeTab, setActiveTab] = useState('home');
+  const [activeTab, setActiveTabState] = useState(getInitialTab);
   const [expenseOpenSignal, setExpenseOpenSignal] = useState(0);
   const { authView, setAuthView } = useAuth();
+
+  const setActiveTab = (tab) => {
+    setActiveTabState(tab);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('apna_active_tab', tab);
+        window.location.hash = `#/${tab}`;
+      } catch {}
+    }
+  };
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace(/^#\/?/, '').toLowerCase();
+      if (VALID_TABS.includes(hash)) {
+        setActiveTabState(hash);
+        try {
+          localStorage.setItem('apna_active_tab', hash);
+        } catch {}
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   // Reset token URL query detection (e.g. from password recovery email link)
   const [resetParams, setResetParams] = useState({ uid: '', token: '' });

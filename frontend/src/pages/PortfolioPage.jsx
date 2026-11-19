@@ -77,8 +77,7 @@ export default function PortfolioPage() {
     setError('');
     try {
       await operation();
-      await load();
-      await refreshUserData();
+      await Promise.all([load(), refreshUserData({ preserveUser: true, onlyAccounts: true })]);
     } catch (e) {
       setError(e.message);
     }

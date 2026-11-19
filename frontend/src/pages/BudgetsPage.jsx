@@ -61,8 +61,7 @@ export default function BudgetsPage() {
     setNotice('');
     try {
       await operation();
-      await load();
-      await refreshUserData();
+      await Promise.all([load(), refreshUserData({ preserveUser: true, onlyAccounts: true })]);
       if (successMessage) setNotice(successMessage);
     } catch (operationError) {
       setError(operationError.message);

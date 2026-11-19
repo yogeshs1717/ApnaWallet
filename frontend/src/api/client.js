@@ -86,10 +86,19 @@ export async function fetchFromApi(endpoint, options = {}) {
 }
 
 /**
- * Ensures CSRF cookie is initialized
+ * Ensures CSRF cookie is initialized (cached once obtained)
  */
-export async function initCsrfToken() {
-  return await fetchFromApi('/auth/csrf/');
+let csrfPromise = null;
+export async function initCsrfToken(force = false) {
+  if (!force && getCookie('csrftoken')) {
+    return { detail: 'CSRF token already present' };
+  }
+  if (!csrfPromise) {
+    csrfPromise = fetchFromApi('/auth/csrf/').finally(() => {
+      csrfPromise = null;
+    });
+  }
+  return await csrfPromise;
 }
 
 /**
