@@ -32,11 +32,13 @@ export default function AuthModal({ initialView = 'login', initialUid = '', init
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [devResetUrl, setDevResetUrl] = useState(null);
   const dialogRef = useRef(null);
 
   const clearMessages = () => {
     setErrorMessage('');
     setSuccessMessage('');
+    setDevResetUrl(null);
   };
 
   const switchView = (newView) => {
@@ -72,8 +74,12 @@ export default function AuthModal({ initialView = 'login', initialUid = '', init
         onClose?.();
       } else if (view === 'forgot') {
         if (!email) throw new Error('Please enter your registered email address.');
+        setDevResetUrl(null);
         const res = await requestPasswordReset(email);
         setSuccessMessage(res.message || 'If registered, a password recovery link has been dispatched to your email.');
+        if (res.dev_reset_url) {
+          setDevResetUrl(res.dev_reset_url);
+        }
       } else if (view === 'reset') {
         if (!password) throw new Error('Please provide a new password.');
         if (password.length < 8) throw new Error('Password must be at least 8 characters long.');
@@ -146,7 +152,19 @@ export default function AuthModal({ initialView = 'login', initialUid = '', init
           {successMessage && (
             <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs animate-in fade-in">
               <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
-              <div className="flex-1 font-medium">{successMessage}</div>
+              <div className="flex-1 font-medium space-y-2">
+                <div>{successMessage}</div>
+                {devResetUrl && (
+                  <div className="pt-1">
+                    <a
+                      href={devResetUrl}
+                      className="inline-block px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl text-xs shadow-xs transition-colors"
+                    >
+                      Open Password Reset Link →
+                    </a>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

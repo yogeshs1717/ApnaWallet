@@ -252,8 +252,11 @@ FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
 
 # Email Delivery Configuration (Brevo Transactional SMTP with Console Fallback)
 BREVO_SMTP_KEY = os.getenv('BREVO_SMTP_KEY')
-if BREVO_SMTP_KEY:
-    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_BACKEND = os.getenv(
+    'EMAIL_BACKEND',
+    'django.core.mail.backends.smtp.EmailBackend' if BREVO_SMTP_KEY else 'django.core.mail.backends.console.EmailBackend'
+)
+if 'smtp' in EMAIL_BACKEND.lower() and BREVO_SMTP_KEY:
     EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp-relay.brevo.com')
     EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
     EMAIL_USE_TLS = True
@@ -261,9 +264,8 @@ if BREVO_SMTP_KEY:
     EMAIL_HOST_PASSWORD = BREVO_SMTP_KEY
     DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'no-reply@apnawallet.com')
 else:
-    # Development fallback: outputs emails to Django server console
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-    DEFAULT_FROM_EMAIL = 'no-reply@apnawallet.com'
+    # Console email backend: prints emails directly to Django server console
+    DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'no-reply@apnawallet.com')
 
 LOGGING = {
     'version': 1,

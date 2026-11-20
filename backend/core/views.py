@@ -1,3 +1,4 @@
+import logging
 from decimal import Decimal
 from datetime import datetime, timedelta
 from django.conf import settings
@@ -17,6 +18,8 @@ from rest_framework.decorators import api_view, permission_classes, throttle_cla
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
+
+logger = logging.getLogger(__name__)
 
 from .models import (
     Category,
@@ -523,13 +526,33 @@ def password_reset_request_view(request):
                 f"— Team ApnaWallet (Your Money. Your Rules.)"
             )
 
-            send_mail(
-                subject=subject,
-                message=message,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[user.email],
-                fail_silently=False,
-            )
+            try:
+                send_mail(
+                    subject=subject,
+                    message=message,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[user.email],
+                    fail_silently=False,
+                )
+                logger.info("Password reset email dispatched successfully to %s", user.email)
+            except Exception as exc:
+                logger.error("Failed to dispatch password reset email to %s: %s", user.email, exc)
+                logger.warning(
+                    "\n" + "=" * 70 +
+                    f"\n[ACCOUNT RECOVERY FALLBACK] RESET LINK FOR {user.email}:\n{reset_url}\n" +
+                    "=" * 70 + "\n"
+                )
+                # If running locally or in development, return actionable fallback so user is never blocked
+                if settings.DEBUG or 'localhost' in settings.FRONTEND_URL or '127.0.0.1' in settings.FRONTEND_URL:
+                    return Response({
+                        "message": "Email delivery blocked by Brevo IP security (525 Unauthorized IP). For local testing, use the reset link below.",
+                        "dev_reset_url": reset_url,
+                        "error_detail": str(exc),
+                    }, status=status.HTTP_200_OK)
+
+                return Response({
+                    "message": "Unable to dispatch recovery email due to mail server security policy. Please contact support or try again later."
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
         return Response({
             "message": "If this email address is registered, a password reset link has been dispatched."
