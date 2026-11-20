@@ -101,12 +101,16 @@ CSRF_TRUSTED_ORIGINS = [
     if origin.strip()
 ]
 
-# Ensure cookies can be passed safely between ports in development
-SESSION_COOKIE_SAMESITE = 'Lax'
-CSRF_COOKIE_SAMESITE = 'Lax'
+# Cookie configuration:
+# In production across separate domains/subdomains (e.g. apnawallet-frontend.onrender.com and apnawallet-backend.onrender.com),
+# SameSite must be 'None' and Secure must be True for browsers to include session cookies in cross-origin fetch requests.
+IS_SECURE_ENV = env_bool('DJANGO_SESSION_COOKIE_SECURE', default=not DEBUG)
+
+SESSION_COOKIE_SAMESITE = os.getenv('SESSION_COOKIE_SAMESITE', 'None' if IS_SECURE_ENV else 'Lax')
+CSRF_COOKIE_SAMESITE = os.getenv('CSRF_COOKIE_SAMESITE', 'None' if IS_SECURE_ENV else 'Lax')
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SECURE = env_bool('DJANGO_SESSION_COOKIE_SECURE')
-CSRF_COOKIE_SECURE = env_bool('DJANGO_CSRF_COOKIE_SECURE')
+SESSION_COOKIE_SECURE = IS_SECURE_ENV
+CSRF_COOKIE_SECURE = env_bool('DJANGO_CSRF_COOKIE_SECURE', default=IS_SECURE_ENV)
 SECURE_SSL_REDIRECT = env_bool('DJANGO_SECURE_SSL_REDIRECT')
 SECURE_HSTS_SECONDS = int(os.getenv('DJANGO_SECURE_HSTS_SECONDS', '0'))
 SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool('DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS')
