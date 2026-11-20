@@ -27,6 +27,26 @@ export function getCookie(name) {
 }
 
 /**
+ * Token Authentication helpers for cross-origin mobile storage
+ */
+export function getAuthToken() {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('apna_auth_token');
+  }
+  return null;
+}
+
+export function setAuthToken(token) {
+  if (typeof window !== 'undefined') {
+    if (token) {
+      localStorage.setItem('apna_auth_token', token);
+    } else {
+      localStorage.removeItem('apna_auth_token');
+    }
+  }
+}
+
+/**
  * Core fetch wrapper with credentials and error handling
  */
 export async function fetchFromApi(endpoint, options = {}) {
@@ -38,6 +58,12 @@ export async function fetchFromApi(endpoint, options = {}) {
     'Accept': 'application/json',
     ...options.headers,
   };
+
+  // Add Token header for robust cross-origin authentication on mobile
+  const authToken = getAuthToken();
+  if (authToken) {
+    headers['Authorization'] = `Token ${authToken}`;
+  }
 
   // Add CSRF token for state-changing requests
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
@@ -116,10 +142,14 @@ export async function getBackendHealth() {
  */
 export async function registerUser({ full_name, email, password }) {
   await initCsrfToken();
-  return await fetchFromApi('/auth/register/', {
+  const res = await fetchFromApi('/auth/register/', {
     method: 'POST',
     body: JSON.stringify({ full_name, email, password }),
   });
+  if (res?.token) {
+    setAuthToken(res.token);
+  }
+  return res;
 }
 
 /**
@@ -127,20 +157,28 @@ export async function registerUser({ full_name, email, password }) {
  */
 export async function loginUser({ email, password }) {
   await initCsrfToken();
-  return await fetchFromApi('/auth/login/', {
+  const res = await fetchFromApi('/auth/login/', {
     method: 'POST',
     body: JSON.stringify({ email, password }),
   });
+  if (res?.token) {
+    setAuthToken(res.token);
+  }
+  return res;
 }
 
 /**
  * User Logout
  */
 export async function logoutUser() {
-  await initCsrfToken();
-  return await fetchFromApi('/auth/logout/', {
-    method: 'POST',
-  });
+  try {
+    await initCsrfToken();
+    return await fetchFromApi('/auth/logout/', {
+      method: 'POST',
+    });
+  } finally {
+    setAuthToken(null);
+  }
 }
 
 /**

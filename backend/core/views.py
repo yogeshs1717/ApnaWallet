@@ -18,6 +18,7 @@ from rest_framework.decorators import api_view, permission_classes, throttle_cla
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
+from rest_framework.authtoken.models import Token
 
 logger = logging.getLogger(__name__)
 
@@ -129,10 +130,12 @@ def register_view(request):
         user = serializer.save()
         seed_default_categories()
         login(request, user)
+        token, _ = Token.objects.get_or_create(user=user)
         profile_data = UserProfileSerializer(user).data
         return Response({
             "message": "Registration successful.",
-            "user": profile_data
+            "user": profile_data,
+            "token": token.key
         }, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -145,18 +148,22 @@ def login_view(request):
         user = serializer.validated_data['user']
         login(request, user)
         seed_default_categories()
+        token, _ = Token.objects.get_or_create(user=user)
         profile_data = UserProfileSerializer(user).data
         return Response({
             "message": "Login successful.",
-            "user": profile_data
+            "user": profile_data,
+            "token": token.key
         }, status=status.HTTP_200_OK)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def logout_view(request):
-    logout(request)
+    if request.user and request.user.is_authenticated:
+        Token.objects.filter(user=request.user).delete()
+        logout(request)
     return Response({"message": "Logout successful."}, status=status.HTTP_200_OK)
 
 
