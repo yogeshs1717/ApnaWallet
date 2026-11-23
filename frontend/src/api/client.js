@@ -301,11 +301,21 @@ export async function updateExpense(transactionId, { amount, balance_type, note,
 /**
  * Cash ↔ Bank Transfer — total balance unchanged
  */
-export async function createTransfer({ account_id, amount, balance_type, destination_balance_type, note, date }) {
+export async function createTransfer({ account_id, amount, balance_type, source_balance_type, destination_balance_type, note, date }) {
   await initCsrfToken();
+  const src = source_balance_type || balance_type || 'CASH';
+  const dest = destination_balance_type || (src === 'CASH' ? 'BANK' : 'CASH');
   return await fetchFromApi('/transactions/transfer/', {
     method: 'POST',
-    body: JSON.stringify({ account_id, amount, balance_type, destination_balance_type, note, date }),
+    body: JSON.stringify({
+      account_id,
+      amount,
+      source_balance_type: src,
+      balance_type: src,
+      destination_balance_type: dest,
+      note,
+      date,
+    }),
   });
 }
 

@@ -224,12 +224,23 @@ class ExpenseSerializer(serializers.Serializer):
 class TransferSerializer(serializers.Serializer):
     account_id = serializers.UUIDField(required=False)
     amount = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal('0.01'))
-    source_balance_type = serializers.ChoiceField(choices=['CASH', 'BANK'])
-    destination_balance_type = serializers.ChoiceField(choices=['CASH', 'BANK'])
+    source_balance_type = serializers.ChoiceField(choices=['CASH', 'BANK'], required=False)
+    balance_type = serializers.ChoiceField(choices=['CASH', 'BANK'], required=False)
+    destination_balance_type = serializers.ChoiceField(choices=['CASH', 'BANK'], required=False)
     note = serializers.CharField(max_length=255)
     date = serializers.DateField(required=False)
 
     def validate(self, attrs):
+        src = attrs.get('source_balance_type') or attrs.get('balance_type')
+        if not src:
+            raise serializers.ValidationError({"source_balance_type": "This field is required. Must be CASH or BANK."})
+        attrs['source_balance_type'] = src
+
+        dest = attrs.get('destination_balance_type')
+        if not dest:
+            dest = 'BANK' if src == 'CASH' else 'CASH'
+        attrs['destination_balance_type'] = dest
+
         if attrs['source_balance_type'] == attrs['destination_balance_type']:
             raise serializers.ValidationError("Source and destination balance types must be different.")
         trimmed = attrs.get('note', '').strip()

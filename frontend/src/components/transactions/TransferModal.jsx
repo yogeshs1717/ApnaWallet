@@ -61,6 +61,7 @@ export default function TransferModal({ accountId, cashBalance, bankBalance, onS
       const result = await createTransfer({
         account_id: accountId,
         amount: form.amount,
+        source_balance_type: form.balance_type,
         balance_type: form.balance_type,
         destination_balance_type: destination,
         note: form.note.trim(),
