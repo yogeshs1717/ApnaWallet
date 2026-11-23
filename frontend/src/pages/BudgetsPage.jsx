@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, CalendarClock, Check, Edit3, Pause, Play, Trash2, WalletCards } from 'lucide-react';
+import { AlertTriangle, CalendarClock, Check, Edit3, Pause, Play, Trash2, WalletCards, Plus, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
   cancelRecurringExpense, createBudget, createRecurringExpense, deleteBudget,
@@ -9,7 +9,7 @@ import {
 
 const today = new Date().toISOString().slice(0, 10);
 const currentMonth = today.slice(0, 7);
-const inputClass = 'w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:border-orange-400 focus:outline-none';
+const inputClass = 'w-full rounded-2xl border border-stone-200 bg-[#FAF6F0] px-3.5 py-3 text-xs sm:text-sm text-[#24151B] focus:border-[#FF902B] focus:bg-white focus:outline-none transition-all';
 const money = (value) => new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(Number(value || 0));
 const budgetDefaults = { amount: '', category: '' };
 const recurringDefaults = {
@@ -18,11 +18,26 @@ const recurringDefaults = {
 };
 
 function Field({ label, ...props }) {
-  return <label className="space-y-1 text-xs font-semibold text-slate-600"><span>{label}</span><input className={inputClass} {...props} /></label>;
+  return (
+    <label className="space-y-1.5 text-xs font-bold text-stone-600 block">
+      <span>{label}</span>
+      <input className={inputClass} {...props} />
+    </label>
+  );
 }
 
 function CategorySelect({ categories, value, onChange, label = 'Category (optional)' }) {
-  return <label className="space-y-1 text-xs font-semibold text-slate-600"><span>{label}</span><select className={inputClass} value={value || ''} onChange={onChange}><option value="">Overall / none</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>;
+  return (
+    <label className="space-y-1.5 text-xs font-bold text-stone-600 block">
+      <span>{label}</span>
+      <select className={inputClass} value={value || ''} onChange={onChange}>
+        <option value="">Overall / None</option>
+        {categories.map((category) => (
+          <option key={category.id} value={category.id}>{category.name}</option>
+        ))}
+      </select>
+    </label>
+  );
 }
 
 export default function BudgetsPage() {
@@ -69,7 +84,24 @@ export default function BudgetsPage() {
   };
 
   if (!isAuthenticated) {
-    return <div className="rounded-3xl bg-white p-8 text-center shadow-sm"><h2 className="text-xl font-bold">Sign in to manage budgets</h2><button onClick={() => setAuthView('login')} className="mt-4 rounded-xl bg-orange-500 px-5 py-2 text-sm font-bold text-white">Sign In</button></div>;
+    return (
+      <div className="rounded-[32px] bg-white p-8 sm:p-12 text-center border border-stone-200/60 shadow-[0_8px_30px_rgba(51,27,36,0.04)] max-w-md mx-auto my-8 space-y-4">
+        <div className="w-16 h-16 rounded-full bg-[#FFF0E2] text-[#FF902B] mx-auto flex items-center justify-center">
+          <WalletCards className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-extrabold text-[#24151B]">Sign in to manage budgets</h2>
+        <p className="text-xs text-stone-400">
+          Set monthly spending caps and monitor recurring bills and subscriptions.
+        </p>
+        <button
+          type="button"
+          onClick={() => setAuthView('login')}
+          className="mt-4 w-full rounded-full bg-[#FF902B] py-3 text-xs font-extrabold text-white hover:bg-[#E0791B] active:scale-95 transition-all shadow-md cursor-pointer"
+        >
+          Sign In
+        </button>
+      </div>
+    );
   }
 
   const submitBudget = (event) => {
@@ -103,25 +135,282 @@ export default function BudgetsPage() {
   };
 
   const usage = budgets?.overall;
-  return <div className="space-y-6">
-    <div><h1 className="text-2xl font-black text-slate-900">Budgets & Recurring Expenses</h1><p className="mt-1 text-sm text-slate-500">Plan optional spending limits and record scheduled payments only when they happen.</p></div>
-    {error && <div className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
-    {notice && <div className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">{notice}</div>}
 
-    <section className="rounded-3xl bg-white p-5 shadow-sm border border-slate-100 space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="flex items-center gap-2 font-bold"><WalletCards className="h-5 w-5 text-orange-500" />Monthly budget</h2><p className="text-xs text-slate-400">Account: {selectedAccount?.name}</p></div><Field label="Calendar month" type="month" value={month} onChange={(event) => setMonth(event.target.value)} /></div>
-      {!usage && !(budgets?.budgets || []).length ? <div className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-800">No budget configured for this month. Spending continues normally without warnings.</div> : <div className="space-y-4">
-        {usage && <div className={`rounded-2xl border p-4 ${usage.warning ? 'border-rose-300 bg-rose-50' : 'border-slate-100 bg-slate-50'}`}><div className="flex items-center justify-between"><div><p className="text-xs font-bold uppercase text-slate-500">Overall budget</p><p className="mt-1 text-lg font-black">₹{money(usage.spent)} <span className="text-sm font-normal text-slate-400">/ ₹{money(usage.amount)}</span></p></div>{usage.warning && <AlertTriangle className="h-7 w-7 text-rose-600" />}</div><div className="mt-3 h-3 overflow-hidden rounded-full bg-white"><div className={`h-full rounded-full ${usage.warning ? 'bg-rose-500' : 'bg-orange-500'}`} style={{ width: `${Math.min(Number(usage.usage_percentage), 100)}%` }} /></div><p className={`mt-2 text-xs font-bold ${usage.warning ? 'text-rose-700' : 'text-slate-500'}`}>{usage.warning ? `${usage.usage_percentage}% used — ₹${money(Math.abs(Number(usage.remaining)))} over budget` : `₹${money(usage.remaining)} remaining (${usage.usage_percentage}% used)`}</p></div>}
-        <div className="grid gap-3 sm:grid-cols-2">{(budgets?.budgets || []).filter((item) => item.category).map((budget) => <div key={budget.id} className={`rounded-2xl border p-4 ${budget.warning ? 'border-rose-300 bg-rose-50' : 'border-slate-100'}`}><div className="flex justify-between"><span className="text-sm font-bold">{budget.category_name}</span><span className="text-xs text-slate-500">₹{money(budget.spent)} / ₹{money(budget.amount)}</span></div><div className="mt-2 h-2 rounded-full bg-slate-100"><div className={`h-full rounded-full ${budget.warning ? 'bg-rose-500' : 'bg-amber-500'}`} style={{ width: `${Math.min(Number(budget.usage_percentage), 100)}%` }} /></div><div className="mt-2 flex justify-between text-xs"><span className={budget.warning ? 'font-bold text-rose-700' : 'text-slate-500'}>{budget.warning ? 'Budget reached' : `₹${money(budget.remaining)} left`}</span><button onClick={() => editBudget(budget)} className="font-bold text-orange-600"><Edit3 className="mr-1 inline h-3 w-3" />Edit</button></div></div>)}</div>
-      </div>}
-      <form className="grid gap-3 border-t border-slate-100 pt-4 sm:grid-cols-3" onSubmit={submitBudget}><Field label={`${editingBudget ? 'Edit' : 'Add'} amount`} required type="number" min="0.01" step="any" placeholder="0.00" value={budgetForm.amount} onChange={(event) => setBudgetForm({ ...budgetForm, amount: event.target.value })} /><CategorySelect categories={categories} value={budgetForm.category} onChange={(event) => setBudgetForm({ ...budgetForm, category: event.target.value })} /><button className="rounded-xl bg-orange-500 px-4 py-2 text-sm font-bold text-white">{editingBudget ? 'Update budget' : 'Add budget'}</button></form>
-      {(budgets?.budgets || []).map((budget) => <div key={`manage-${budget.id}`} className="flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-500"><span>{budget.category_name || 'Overall'} · ₹{money(budget.amount)}</span><button onClick={() => run(() => deleteBudget(budget.id), 'Budget deleted.')} className="font-bold text-rose-600"><Trash2 className="mr-1 inline h-3 w-3" />Delete</button></div>)}
-    </section>
+  return (
+    <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-200">
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#24151B]">
+          Budgets &amp; Subscriptions
+        </h1>
+        <p className="mt-1 text-xs sm:text-sm text-stone-400">
+          Plan optional spending limits and record scheduled payments automatically.
+        </p>
+      </div>
 
-    <section className="rounded-3xl bg-white p-5 shadow-sm border border-slate-100 space-y-4">
-      <div><h2 className="flex items-center gap-2 font-bold"><CalendarClock className="h-5 w-5 text-orange-500" />Recurring expenses</h2><p className="text-xs text-slate-400">Nothing is deducted automatically. Record each scheduled occurrence when paid.</p></div>
-      <div className="space-y-3">{recurring.length ? recurring.map((item) => <div key={item.id} className="rounded-2xl border border-slate-100 p-4"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="font-bold">{item.name}</p><p className="text-xs text-slate-500">₹{money(item.amount)} · {item.frequency} · {item.balance_type} · {item.category_name || 'Uncategorized'}</p></div><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${item.status === 'OVERDUE' ? 'bg-rose-100 text-rose-700' : item.status === 'PAUSED' ? 'bg-slate-100 text-slate-500' : 'bg-amber-100 text-amber-700'}`}>{item.status}</span></div><div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs"><span>Next due: <strong>{item.next_due_date}</strong></span><div className="flex gap-2">{item.enabled && <button onClick={() => run(() => recordRecurringExpense(item.id, item.next_due_date), 'Expense recorded.')} className="rounded-lg bg-orange-500 px-3 py-2 font-bold text-white"><Check className="mr-1 inline h-3 w-3" />Record expense</button>}<button onClick={() => run(() => updateRecurringExpense(item.id, { enabled: !item.enabled }), item.enabled ? 'Recurring expense paused.' : 'Recurring expense resumed.')} className="rounded-lg border border-slate-200 px-3 py-2 font-bold">{item.enabled ? <><Pause className="mr-1 inline h-3 w-3" />Pause</> : <><Play className="mr-1 inline h-3 w-3" />Resume</>}</button><button onClick={() => editRecurring(item)} className="rounded-lg border border-slate-200 px-3 py-2 font-bold"><Edit3 className="h-3 w-3" /></button><button onClick={() => run(() => cancelRecurringExpense(item.id), 'Recurring expense cancelled.')} className="rounded-lg border border-rose-200 px-3 py-2 font-bold text-rose-600"><Trash2 className="h-3 w-3" /></button></div></div></div>) : <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">No recurring expenses configured for this account.</div>}</div>
-      <form className="grid gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2" onSubmit={submitRecurring}><Field label={`${editingRecurring ? 'Edit' : 'Create'} name`} required value={recurringForm.name} onChange={(event) => setRecurringForm({ ...recurringForm, name: event.target.value })} /><Field label="Amount" required type="number" min="0.01" step="any" placeholder="0.00" value={recurringForm.amount} onChange={(event) => setRecurringForm({ ...recurringForm, amount: event.target.value })} /><CategorySelect categories={categories} value={recurringForm.category} onChange={(event) => setRecurringForm({ ...recurringForm, category: event.target.value })} /><label className="space-y-1 text-xs font-semibold text-slate-600"><span>Payment source</span><select className={inputClass} value={recurringForm.balance_type} onChange={(event) => setRecurringForm({ ...recurringForm, balance_type: event.target.value })}><option value="CASH">Cash</option><option value="BANK">Bank</option></select></label><label className="space-y-1 text-xs font-semibold text-slate-600"><span>Frequency</span><select className={inputClass} value={recurringForm.frequency} onChange={(event) => setRecurringForm({ ...recurringForm, frequency: event.target.value })}>{['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'].map((value) => <option key={value}>{value}</option>)}</select></label><Field label="Start date" required type="date" min="2000-01-01" max="2099-12-31" value={recurringForm.start_date} onChange={(event) => setRecurringForm({ ...recurringForm, start_date: event.target.value })} /><Field label="Next due date" required type="date" min="2000-01-01" max="2099-12-31" value={recurringForm.next_due_date} onChange={(event) => setRecurringForm({ ...recurringForm, next_due_date: event.target.value })} /><Field label="End date (optional)" type="date" min="2000-01-01" max="2099-12-31" value={recurringForm.end_date} onChange={(event) => setRecurringForm({ ...recurringForm, end_date: event.target.value })} /><Field label="Note (min 3 chars)" required value={recurringForm.note} onChange={(event) => setRecurringForm({ ...recurringForm, note: event.target.value })} /><button className="rounded-xl bg-orange-500 px-4 py-2 text-sm font-bold text-white sm:col-span-2">{editingRecurring ? 'Update recurring expense' : 'Create recurring expense'}</button></form>
-    </section>
-  </div>;
+      {error && <div className="rounded-2xl bg-rose-50 border border-rose-200 p-3.5 text-xs text-rose-700 font-semibold">{error}</div>}
+      {notice && <div className="rounded-2xl bg-[#E4F5EE] border border-[#075743]/20 p-3.5 text-xs text-[#075743] font-semibold">{notice}</div>}
+
+      {/* Monthly Budget Section */}
+      <section className="rounded-[32px] bg-white p-6 sm:p-8 border border-stone-200/60 shadow-[0_8px_30px_rgba(51,27,36,0.04)] space-y-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="flex items-center gap-2 text-base sm:text-lg font-extrabold text-[#24151B]">
+              <WalletCards className="h-5 w-5 text-[#FF902B]" />
+              <span>Monthly Budget</span>
+            </h2>
+            <p className="text-xs text-stone-400">Account: {selectedAccount?.name || 'Personal'}</p>
+          </div>
+          <div className="max-w-[200px]">
+            <Field label="Calendar Month" type="month" value={month} onChange={(event) => setMonth(event.target.value)} />
+          </div>
+        </div>
+
+        {!usage && !(budgets?.budgets || []).length ? (
+          <div className="rounded-2xl bg-[#FAF6F0] p-5 text-xs sm:text-sm text-stone-500 font-medium">
+            No budget configured for this month. Spending continues normally without cap warnings.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Overall Budget Hero Progress Card */}
+            {usage && (
+              <div className={`rounded-[28px] border p-5 sm:p-6 transition-all ${usage.warning ? 'border-rose-300 bg-rose-50/70' : 'border-[#462532] bg-[#331B24] text-white shadow-md'}`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className={`text-xs font-bold uppercase tracking-wider ${usage.warning ? 'text-rose-600' : 'text-[#D2B4ED]'}`}>
+                      Overall Spending Cap
+                    </p>
+                    <p className="mt-1 text-2xl sm:text-3xl font-extrabold">
+                      ₹{money(usage.spent)}{' '}
+                      <span className={`text-sm font-normal ${usage.warning ? 'text-rose-500' : 'text-stone-300'}`}>
+                        / ₹{money(usage.amount)}
+                      </span>
+                    </p>
+                  </div>
+                  {usage.warning && <AlertTriangle className="h-8 w-8 text-rose-600 animate-bounce" />}
+                </div>
+
+                <div className="mt-4 h-3 overflow-hidden rounded-full bg-black/20 p-0.5">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${usage.warning ? 'bg-rose-500' : 'bg-[#C5F52A]'}`}
+                    style={{ width: `${Math.min(Number(usage.usage_percentage), 100)}%` }}
+                  />
+                </div>
+
+                <p className={`mt-2.5 text-xs font-bold ${usage.warning ? 'text-rose-700' : 'text-[#D2B4ED]'}`}>
+                  {usage.warning
+                    ? `${usage.usage_percentage}% used — ₹${money(Math.abs(Number(usage.remaining)))} over budget!`
+                    : `₹${money(usage.remaining)} remaining safe to spend (${usage.usage_percentage}% used)`}
+                </p>
+              </div>
+            )}
+
+            {/* Category Budgets Grid */}
+            <div className="grid gap-3 sm:grid-cols-2">
+              {(budgets?.budgets || []).filter((item) => item.category).map((budget) => (
+                <div
+                  key={budget.id}
+                  className={`rounded-2xl border p-4 transition-all ${budget.warning ? 'border-rose-300 bg-rose-50' : 'border-stone-200/60 bg-[#FAF6F0]'}`}
+                >
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-xs sm:text-sm font-extrabold text-[#24151B]">{budget.category_name}</span>
+                    <span className="text-xs text-stone-500 font-semibold">₹{money(budget.spent)} / ₹{money(budget.amount)}</span>
+                  </div>
+                  <div className="mt-2.5 h-2 rounded-full bg-stone-200/70 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${budget.warning ? 'bg-rose-500' : 'bg-[#C5F52A]'}`}
+                      style={{ width: `${Math.min(Number(budget.usage_percentage), 100)}%` }}
+                    />
+                  </div>
+                  <div className="mt-2.5 flex justify-between items-center text-xs">
+                    <span className={budget.warning ? 'font-extrabold text-rose-700' : 'text-stone-500 font-semibold'}>
+                      {budget.warning ? 'Budget Exceeded' : `₹${money(budget.remaining)} left`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => editBudget(budget)}
+                      className="font-extrabold text-[#FF902B] hover:text-[#E0791B] flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-3 w-3" /> Edit
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Form: Add or Edit Budget */}
+        <form className="grid gap-3 border-t border-stone-100 pt-4 sm:grid-cols-3" onSubmit={submitBudget}>
+          <Field
+            label={`${editingBudget ? 'Edit' : 'Add'} Amount (₹)`}
+            required
+            type="number"
+            min="0.01"
+            step="any"
+            placeholder="0.00"
+            value={budgetForm.amount}
+            onChange={(event) => setBudgetForm({ ...budgetForm, amount: event.target.value })}
+          />
+          <CategorySelect
+            categories={categories}
+            value={budgetForm.category}
+            onChange={(event) => setBudgetForm({ ...budgetForm, category: event.target.value })}
+          />
+          <button
+            type="submit"
+            className="mt-6 rounded-full bg-[#C5F52A] px-5 py-3 text-xs font-extrabold text-[#1C1014] hover:bg-[#B4E81E] active:scale-95 transition-all shadow-sm cursor-pointer"
+          >
+            {editingBudget ? 'Update Budget' : '+ Add Spending Cap'}
+          </button>
+        </form>
+
+        {/* Existing Budgets Management List */}
+        {(budgets?.budgets || []).map((budget) => (
+          <div key={`manage-${budget.id}`} className="flex items-center justify-between border-t border-stone-100 pt-3 text-xs text-stone-500">
+            <span className="font-semibold">{budget.category_name || 'Overall'} • ₹{money(budget.amount)}</span>
+            <button
+              type="button"
+              onClick={() => run(() => deleteBudget(budget.id), 'Budget deleted.')}
+              className="font-extrabold text-rose-600 hover:text-rose-700 flex items-center gap-1 cursor-pointer"
+            >
+              <Trash2 className="h-3 w-3" /> Delete
+            </button>
+          </div>
+        ))}
+      </section>
+
+      {/* Recurring Expenses & Subscriptions */}
+      <section className="rounded-[32px] bg-white p-6 sm:p-8 border border-stone-200/60 shadow-[0_8px_30px_rgba(51,27,36,0.04)] space-y-4">
+        <div>
+          <h2 className="flex items-center gap-2 text-base sm:text-lg font-extrabold text-[#24151B]">
+            <CalendarClock className="h-5 w-5 text-[#FF902B]" />
+            <span>Recurring Bills &amp; Subscriptions</span>
+          </h2>
+          <p className="text-xs text-stone-400">Netflix, Rent, SIPs, Gym &amp; Internet</p>
+        </div>
+
+        {/* Recurring List */}
+        {!recurring.length ? (
+          <div className="rounded-2xl bg-[#FAF6F0] p-5 text-xs sm:text-sm text-stone-400">
+            No recurring expenses registered. Add recurring payments below to get automated tracking.
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {recurring.map((item) => (
+              <div
+                key={item.id}
+                className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl border transition-all ${item.is_active ? 'bg-[#FAF6F0] border-stone-200/60' : 'bg-stone-50 border-stone-100 opacity-60'
+                  }`}
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-extrabold text-[#24151B]">{item.name}</span>
+                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-white text-stone-500 border border-stone-200">
+                      {item.frequency}
+                    </span>
+                  </div>
+                  <p className="text-xs text-stone-400 mt-0.5">
+                    Next due: {item.next_due_date} • From {item.balance_type}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3 justify-between sm:justify-end">
+                  <span className="text-base font-extrabold text-[#24151B]">₹{money(item.amount)}</span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => run(() => recordRecurringExpense(item.id, item.next_due_date), 'Expense recorded.')}
+                      className="px-3 py-1.5 rounded-full bg-[#C5F52A] text-[#1C1014] text-xs font-extrabold hover:bg-[#B4E81E] active:scale-95 transition cursor-pointer"
+                      title="Record payment now"
+                    >
+                      Record Now
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => editRecurring(item)}
+                      className="p-1.5 rounded-full bg-white text-stone-400 hover:text-stone-700 border border-stone-200 cursor-pointer"
+                      title="Edit recurring rule"
+                    >
+                      <Edit3 className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => run(() => cancelRecurringExpense(item.id), 'Recurring expense removed.')}
+                      className="p-1.5 rounded-full bg-white text-rose-500 hover:text-rose-700 border border-stone-200 cursor-pointer"
+                      title="Delete rule"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Recurring Form */}
+        <form className="grid gap-3 border-t border-stone-100 pt-5 sm:grid-cols-3" onSubmit={submitRecurring}>
+          <Field
+            label="Name / Service"
+            required
+            placeholder="e.g. Netflix, Wi-Fi"
+            value={recurringForm.name}
+            onChange={(e) => setRecurringForm({ ...recurringForm, name: e.target.value })}
+          />
+          <Field
+            label="Amount (₹)"
+            required
+            type="number"
+            min="0.01"
+            step="any"
+            placeholder="0.00"
+            value={recurringForm.amount}
+            onChange={(e) => setRecurringForm({ ...recurringForm, amount: e.target.value })}
+          />
+          <CategorySelect
+            categories={categories}
+            value={recurringForm.category}
+            onChange={(e) => setRecurringForm({ ...recurringForm, category: e.target.value })}
+          />
+          <label className="space-y-1.5 text-xs font-bold text-stone-600 block">
+            <span>Payment Method</span>
+            <select
+              className={inputClass}
+              value={recurringForm.balance_type}
+              onChange={(e) => setRecurringForm({ ...recurringForm, balance_type: e.target.value })}
+            >
+              <option value="BANK">Bank</option>
+              <option value="CASH">Cash</option>
+            </select>
+          </label>
+          <label className="space-y-1.5 text-xs font-bold text-stone-600 block">
+            <span>Frequency</span>
+            <select
+              className={inputClass}
+              value={recurringForm.frequency}
+              onChange={(e) => setRecurringForm({ ...recurringForm, frequency: e.target.value })}
+            >
+              <option value="DAILY">Daily</option>
+              <option value="WEEKLY">Weekly</option>
+              <option value="MONTHLY">Monthly</option>
+              <option value="YEARLY">Yearly</option>
+            </select>
+          </label>
+          <Field
+            label="Next Due Date"
+            type="date"
+            value={recurringForm.next_due_date}
+            onChange={(e) => setRecurringForm({ ...recurringForm, next_due_date: e.target.value })}
+          />
+          <button
+            type="submit"
+            className="sm:col-span-3 rounded-full bg-[#FF902B] py-3.5 text-xs font-extrabold text-white hover:bg-[#E0791B] active:scale-95 transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5"
+          >
+            <Plus className="h-4 w-4" />
+            <span>{editingRecurring ? 'Update Subscription Rule' : 'Save Recurring Rule'}</span>
+          </button>
+        </form>
+      </section>
+    </div>
+  );
 }

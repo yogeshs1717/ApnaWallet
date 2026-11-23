@@ -68,65 +68,70 @@ export default function AdjustLendModal({ lending, onSuccess, onClose }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-[#331B24]/40 backdrop-blur-sm animate-in fade-in duration-200"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-full sm:max-w-md bg-white sm:rounded-3xl rounded-t-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
+      <div className="w-full sm:max-w-md bg-[#FAF6F0] rounded-t-[36px] sm:rounded-[36px] shadow-[0_20px_60px_rgba(51,27,36,0.25)] border border-[#331B24]/10 overflow-hidden animate-in slide-in-from-bottom-6 duration-300 font-sans">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-amber-500/10 to-orange-500/10">
-          <div className="flex items-center gap-2">
-            <Sliders className="w-5 h-5 text-amber-600" />
+        <div className="flex items-center justify-between px-6 py-5 border-b border-[#331B24]/5 bg-white">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-[#FF902B]/15 flex items-center justify-center text-[#FF902B]">
+              <Sliders className="w-5 h-5" />
+            </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900">Adjust Receivable</h2>
-              <p className="text-xs text-slate-500">For {lending.borrower_name}</p>
+              <h2 className="text-base font-extrabold text-[#331B24] tracking-tight">Adjust Receivable</h2>
+              <p className="text-xs text-[#331B24]/60 font-medium">For {lending.borrower_name}</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 transition-colors cursor-pointer">
-            <X className="w-5 h-5" />
+          <button
+            onClick={onClose}
+            className="w-9 h-9 rounded-full bg-[#FAF6F0] hover:bg-[#331B24]/10 text-[#331B24] flex items-center justify-center transition-all cursor-pointer"
+          >
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {status === 'success' ? (
-          <div className="p-8 text-center space-y-3">
-            <div className="w-16 h-16 rounded-full bg-green-50 mx-auto flex items-center justify-center">
-              <CheckCircle className="w-9 h-9 text-green-500" />
+          <div className="p-8 text-center space-y-4 bg-white">
+            <div className="w-16 h-16 rounded-full bg-[#C5F52A]/30 mx-auto flex items-center justify-center">
+              <CheckCircle className="w-9 h-9 text-[#075743]" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900">Receivable Adjusted!</h3>
-            <p className="text-sm text-slate-500">
+            <h3 className="text-xl font-extrabold text-[#331B24]">Receivable Adjusted!</h3>
+            <p className="text-sm text-[#331B24]/70 max-w-xs mx-auto leading-relaxed">
               Outstanding due updated to ₹{parseFloat(newAmount).toFixed(2)}. Audit log preserved.
             </p>
             <button
               onClick={onClose}
-              className="mt-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-bold shadow cursor-pointer"
+              className="mt-3 px-8 py-3.5 rounded-full bg-[#331B24] text-white text-sm font-bold shadow hover:bg-[#41232E] transition-all cursor-pointer"
             >
               Done
             </button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <form onSubmit={handleSubmit} className="p-6 space-y-4 bg-white">
             {serverError && (
-              <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-500" />
                 <span>{serverError}</span>
               </div>
             )}
 
-            <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900">
-              <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-[#FF902B]/10 border border-[#FF902B]/20 text-[11px] text-[#331B24] font-medium leading-relaxed">
+              <Info className="w-4 h-4 text-[#FF902B] shrink-0 mt-0.5" />
               <span>
                 Manual adjustment changes the amount owed (e.g. debt forgiveness, settlement discount). It does <strong>NOT</strong> add money to Cash or Bank because no actual cash was received.
               </span>
             </div>
 
             {/* Current vs New */}
-            <div className="grid grid-cols-2 gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs">
+            <div className="grid grid-cols-2 gap-3 p-3.5 rounded-2xl bg-[#FAF6F0] border border-[#331B24]/5 text-xs">
               <div>
-                <span className="text-slate-400 block">Current Due</span>
-                <span className="text-sm font-bold text-slate-800">₹{currentOutstanding.toFixed(2)}</span>
+                <span className="text-[#331B24]/50 font-bold block mb-0.5">Current Due</span>
+                <span className="text-sm font-extrabold text-[#331B24]">₹{currentOutstanding.toFixed(2)}</span>
               </div>
               <div>
-                <span className="text-slate-400 block">Adjustment Delta</span>
-                <span className={`text-sm font-bold ${delta < 0 ? 'text-rose-600' : delta > 0 ? 'text-emerald-600' : 'text-slate-500'}`}>
+                <span className="text-[#331B24]/50 font-bold block mb-0.5">Adjustment Delta</span>
+                <span className={`text-sm font-extrabold ${delta < 0 ? 'text-rose-600' : delta > 0 ? 'text-[#075743]' : 'text-[#331B24]/50'}`}>
                   {delta > 0 ? `+₹${delta.toFixed(2)}` : delta < 0 ? `-₹${Math.abs(delta).toFixed(2)}` : '₹0.00'}
                 </span>
               </div>
@@ -134,11 +139,11 @@ export default function AdjustLendModal({ lending, onSuccess, onClose }) {
 
             {/* New Outstanding Amount */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                New Outstanding Amount (₹) <span className="text-red-500">*</span>
+              <label className="block text-xs font-bold text-[#331B24]/80 mb-1.5">
+                New Outstanding Amount (₹) <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">₹</span>
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#331B24]/40 font-bold text-base">₹</span>
                 <input
                   type="number"
                   min="0.00"
@@ -146,37 +151,37 @@ export default function AdjustLendModal({ lending, onSuccess, onClose }) {
                   step="0.01"
                   value={newAmount}
                   onChange={(e) => setNewAmount(e.target.value)}
-                  className={`w-full pl-7 pr-4 py-3 rounded-xl border text-sm font-semibold text-slate-900 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white transition ${errors.newAmount ? 'border-red-400' : 'border-slate-200'}`}
+                  className={`w-full pl-9 pr-4 py-3 rounded-2xl border text-base font-extrabold text-[#331B24] bg-[#FAF6F0] focus:outline-none focus:ring-2 focus:ring-[#331B24]/20 focus:bg-white transition ${errors.newAmount ? 'border-rose-400' : 'border-[#331B24]/10'}`}
                 />
               </div>
-              {errors.newAmount && <p className="mt-1 text-xs text-red-600">{errors.newAmount}</p>}
+              {errors.newAmount && <p className="mt-1 text-xs text-rose-600 font-semibold">{errors.newAmount}</p>}
             </div>
 
             {/* Reason */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Reason for Adjustment <span className="text-red-500">*</span>
+              <label className="block text-xs font-bold text-[#331B24]/80 mb-1.5">
+                Reason for Adjustment <span className="text-rose-500">*</span>
               </label>
               <input
                 type="text"
                 placeholder="e.g. Forgiveness ₹50, Settlement agreement..."
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                className={`w-full px-4 py-3 rounded-xl border text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white transition ${errors.reason ? 'border-red-400' : 'border-slate-200'}`}
+                className={`w-full px-4 py-3 rounded-2xl border text-xs font-semibold text-[#331B24] bg-[#FAF6F0] focus:outline-none focus:ring-2 focus:ring-[#331B24]/20 focus:bg-white transition ${errors.reason ? 'border-rose-400' : 'border-[#331B24]/10'}`}
               />
-              {errors.reason && <p className="mt-1 text-xs text-red-600">{errors.reason}</p>}
+              {errors.reason && <p className="mt-1 text-xs text-rose-600 font-semibold">{errors.reason}</p>}
             </div>
 
             {/* Submit */}
             <button
               type="submit"
               disabled={status === 'loading'}
-              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-bold shadow hover:from-amber-600 hover:to-orange-600 transition disabled:opacity-60 flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full py-4 rounded-full bg-[#331B24] hover:bg-[#41232E] text-white text-sm font-extrabold tracking-wide shadow-md transition-all disabled:opacity-60 flex items-center justify-center gap-2 cursor-pointer mt-2"
             >
               {status === 'loading' ? (
-                <><Loader2 className="w-4 h-4 animate-spin" /> Saving Adjustment…</>
+                <><Loader2 className="w-4 h-4 animate-spin text-[#C5F52A]" /> Saving Adjustment…</>
               ) : (
-                <><Sliders className="w-4 h-4" /> Save Financial Adjustment</>
+                <><Sliders className="w-4 h-4 text-[#C5F52A]" /> Save Financial Adjustment</>
               )}
             </button>
           </form>

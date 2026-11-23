@@ -69,26 +69,136 @@ export default function NotificationCenter({ onNavigate, onOpenExpense }) {
     RECURRING_EXPENSE: notifications.filter((item) => item.kind === 'RECURRING_EXPENSE'),
   };
 
-  return <>
-    <div className="relative">
-      <button onClick={() => setOpen((value) => !value)} className="relative flex min-h-11 min-w-11 items-center justify-center rounded-xl p-2 text-slate-500 hover:bg-amber-50 hover:text-orange-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500" aria-label="Notifications" aria-expanded={open}>
-        <Bell className="h-5 w-5" />
-        {unreadCount > 0 && <span className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-4 text-white">{unreadCount > 9 ? '9+' : unreadCount}</span>}
-      </button>
-      {open && <div className="absolute right-0 top-12 z-50 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-amber-100 bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-slate-100 p-4"><div><h3 className="text-sm font-bold">Notifications</h3><p className="text-[11px] text-slate-400">{unreadCount} unread</p></div><button onClick={() => setOpen(false)} className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-1 text-slate-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500" aria-label="Close notifications"><X className="h-4 w-4" /></button></div>
-        {error && <p className="bg-rose-50 px-4 py-2 text-xs text-rose-700">{error}</p>}
-        <div className="max-h-[min(28rem,70vh)] overflow-y-auto p-2">
-          {!notifications.length && !error && <div className="p-8 text-center text-sm text-slate-500">You're all caught up!</div>}
-          {Object.entries(grouped).map(([kind, items]) => items.length > 0 && <div key={kind} className="mb-2"><p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">{kind === 'CREDIT_PAYMENT' ? 'Credit payments' : 'Recurring expenses'}</p>{items.map((item) => <NotificationItem key={item.id} item={item} onNavigate={navigate} onDismiss={dismiss} />)}</div>)}
+  return (
+    <>
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white text-stone-600 hover:text-[#FF902B] border border-stone-200/80 shadow-2xs hover:border-[#FF902B]/40 active:scale-95 transition-all cursor-pointer"
+          aria-label="Notifications"
+          aria-expanded={open}
+        >
+          <Bell className="h-4 w-4" />
+          {unreadCount > 0 && (
+            <span className="absolute -right-0.5 -top-0.5 min-w-4.5 h-4.5 rounded-full bg-[#FF902B] px-1 text-[10px] font-extrabold leading-4.5 text-white text-center shadow-xs">
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
+        </button>
+
+        {open && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+            <div className="absolute right-0 top-12 z-50 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-[28px] border border-stone-100 bg-white shadow-2xl p-4 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+                <div>
+                  <h3 className="text-sm font-extrabold text-[#24151B]">Notifications</h3>
+                  <p className="text-[11px] text-stone-400">{unreadCount} unread alerts</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-stone-400 hover:bg-stone-50 hover:text-stone-600 transition"
+                  aria-label="Close notifications"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {error && <p className="mt-2 rounded-xl bg-rose-50 p-2 text-xs text-rose-600">{error}</p>}
+
+              <div className="mt-3 max-h-[min(26rem,65vh)] overflow-y-auto space-y-2">
+                {!notifications.length && !error && (
+                  <div className="py-8 text-center text-xs text-stone-400">You're all caught up!</div>
+                )}
+                {Object.entries(grouped).map(([kind, items]) => items.length > 0 && (
+                  <div key={kind} className="space-y-1.5">
+                    <p className="px-1 text-[10px] font-extrabold uppercase tracking-wider text-stone-400">
+                      {kind === 'CREDIT_PAYMENT' ? 'Credit payments' : 'Recurring expenses'}
+                    </p>
+                    {items.map((item) => (
+                      <NotificationItem key={item.id} item={item} onNavigate={navigate} onDismiss={dismiss} />
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {dailyReminder && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200" role="presentation">
+          <div role="dialog" aria-modal="true" aria-labelledby="daily-reminder-title" className="w-full max-w-sm rounded-[32px] bg-white p-6 shadow-2xl text-center space-y-4">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#FFF0E2] text-[#FF902B]">
+              <Bell className="h-7 w-7" />
+            </div>
+            <div>
+              <h2 id="daily-reminder-title" className="text-lg font-extrabold text-[#24151B]">
+                Daily Expense Check-in
+              </h2>
+              <p className="mt-1 text-xs text-stone-500">
+                Did you have any expenses today? Keep your ledger current with one tap.
+              </p>
+            </div>
+            <div className="grid gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => respondDaily('updated')}
+                className="w-full rounded-full bg-[#C5F52A] py-3 text-xs font-extrabold text-[#1C1014] hover:bg-[#B4E81E] active:scale-95 transition shadow-sm cursor-pointer"
+              >
+                + Record Today's Expenses
+              </button>
+              <button
+                type="button"
+                onClick={() => respondDaily('no_change')}
+                className="w-full rounded-full border border-stone-200 py-3 text-xs font-bold text-stone-600 hover:bg-stone-50 active:scale-95 transition cursor-pointer"
+              >
+                No Expenses Today
+              </button>
+            </div>
+          </div>
         </div>
-      </div>}
-    </div>
-    {dailyReminder && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 p-4" role="presentation"><div role="dialog" aria-modal="true" aria-labelledby="daily-reminder-title" className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl sm:p-6"><div className="mb-4 flex items-center justify-between"><span className="rounded-xl bg-orange-50 p-2 text-orange-600"><Bell className="h-5 w-5" /></span><button onClick={() => respondDaily('close')} className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-1 text-slate-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500" aria-label="Close daily reminder"><X className="h-5 w-5" /></button></div><h2 id="daily-reminder-title" className="text-xl font-black text-slate-900">Today's expense update, please!</h2><p className="mt-2 text-sm text-slate-500">Keep your ledger current, or dismiss this reminder for today.</p><div className="mt-6 grid gap-2"><button onClick={() => respondDaily('updated')} className="min-h-11 rounded-xl bg-orange-500 px-4 py-3 text-sm font-bold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2">Updated</button><button onClick={() => respondDaily('no_change')} className="min-h-11 rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2">No change</button></div></div></div>}
-  </>;
+      )}
+    </>
+  );
 }
 
 function NotificationItem({ item, onNavigate, onDismiss }) {
   const Icon = item.kind === 'CREDIT_PAYMENT' ? CreditCard : CalendarClock;
-  return <div className={`mb-1 rounded-xl p-3 ${item.is_read ? 'bg-slate-50' : 'bg-orange-50/70'}`}><div className="flex gap-2"><Icon className="mt-0.5 h-4 w-4 shrink-0 text-orange-600" /><div className="min-w-0 flex-1"><p className="text-xs font-bold text-slate-800">{item.title}</p><p className="mt-0.5 text-xs text-slate-600">{item.message}</p><div className="mt-2 flex flex-wrap items-center justify-between gap-2"><span className={`text-[10px] font-bold ${item.status === 'OVERDUE' ? 'text-rose-600' : 'text-slate-400'}`}>{item.status.replace('_', ' ')}</span><div className="flex gap-1"><button onClick={() => onDismiss(item)} className="min-h-11 rounded-lg px-2 py-1 text-[10px] font-bold text-slate-500 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500">Dismiss</button><button onClick={() => onNavigate(item)} className="min-h-11 rounded-lg bg-white px-2 py-1 text-[10px] font-bold text-orange-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500">Open <ChevronRight className="inline h-3 w-3" /></button></div></div></div></div></div>;
+  return (
+    <div className={`rounded-2xl p-3 border transition ${item.is_read ? 'bg-[#FAF6F0] border-stone-100' : 'bg-white border-[#FF902B]/30 shadow-2xs'}`}>
+      <div className="flex gap-2.5">
+        <div className="w-7 h-7 rounded-full bg-[#FFF0E2] text-[#FF902B] flex items-center justify-center shrink-0 mt-0.5">
+          <Icon className="h-3.5 w-3.5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-bold text-[#24151B]">{item.title}</p>
+          <p className="mt-0.5 text-[11px] text-stone-500">{item.message}</p>
+          <div className="mt-2 flex items-center justify-between">
+            <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full ${item.status === 'OVERDUE' ? 'bg-rose-100 text-rose-700' : 'bg-stone-100 text-stone-500'}`}>
+              {item.status.replace('_', ' ')}
+            </span>
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                onClick={() => onDismiss(item)}
+                className="rounded-full px-2.5 py-1 text-[10px] font-bold text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition"
+              >
+                Dismiss
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigate(item)}
+                className="rounded-full bg-[#24151B] px-3 py-1 text-[10px] font-bold text-white hover:bg-black transition flex items-center gap-1"
+              >
+                Open <ChevronRight className="h-3 w-3" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }

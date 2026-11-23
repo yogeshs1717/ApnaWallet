@@ -1,13 +1,9 @@
 /**
  * TransferModal.jsx
- * Prompt 04 — Milestone 6: Cash ↔ Bank Transfer
- *
- * Moves money between Cash and Bank balances.
- * Total available balance does NOT change — this is NOT income.
- * Atomically debits source and credits destination on the backend.
+ * Redesigned with Playful Modern Fintech UI inspired by Taxmate references
  */
 import React, { useState, useRef } from 'react';
-import { X, ArrowLeftRight, Loader2, CheckCircle, AlertCircle, ArrowRight } from 'lucide-react';
+import { X, ArrowLeftRight, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { createTransfer } from '../../api/client';
 
 function today() {
@@ -77,7 +73,6 @@ export default function TransferModal({ accountId, cashBalance, bankBalance, onS
     }
   }
 
-  // Auto-update note when source changes
   function toggleSource() {
     const newSrc = form.balance_type === 'CASH' ? 'BANK' : 'CASH';
     setForm((f) => ({
@@ -89,125 +84,139 @@ export default function TransferModal({ accountId, cashBalance, bankBalance, onS
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-150"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-full sm:max-w-md bg-white sm:rounded-3xl rounded-t-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
+      <div className="w-full sm:max-w-md bg-white sm:rounded-[36px] rounded-t-[36px] shadow-2xl overflow-hidden border border-stone-100 animate-in slide-in-from-bottom-4 duration-200">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-emerald-500/10 to-teal-500/10">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-600 flex items-center justify-center shadow-sm">
-              <ArrowLeftRight className="w-5 h-5 text-white" />
+        <div className="flex items-center justify-between px-6 py-5 border-b border-stone-100 bg-[#FAF6F0]">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-[#E4F5EE] text-[#075743] flex items-center justify-center shadow-2xs">
+              <ArrowLeftRight className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900">Transfer Funds</h2>
-              <p className="text-xs text-slate-500">Move between Cash and Bank</p>
+              <h2 className="text-base font-extrabold text-[#24151B]">Transfer Funds</h2>
+              <p className="text-[11px] text-stone-400">Move money between Cash &amp; Bank</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 transition-colors cursor-pointer">
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 rounded-full hover:bg-stone-200/60 text-stone-400 hover:text-stone-700 transition cursor-pointer"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {status === 'success' ? (
-          <div className="p-8 text-center space-y-3">
-            <div className="w-16 h-16 rounded-full bg-green-50 mx-auto flex items-center justify-center">
-              <CheckCircle className="w-9 h-9 text-green-500" />
+          <div className="p-8 text-center space-y-4">
+            <div className="w-16 h-16 rounded-full bg-[#E4F5EE] text-[#075743] mx-auto flex items-center justify-center">
+              <CheckCircle2 className="w-9 h-9" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900">Transfer Complete!</h3>
-            <p className="text-sm text-slate-500">Your total balance is unchanged.</p>
-            <button onClick={onClose} className="mt-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-sm font-bold shadow cursor-pointer">
+            <div>
+              <h3 className="text-xl font-extrabold text-[#24151B]">Transfer Complete!</h3>
+              <p className="text-xs text-stone-500 mt-1">Total spendable available balance remains unchanged.</p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full py-3 rounded-full bg-[#C5F52A] text-[#1C1014] text-xs font-extrabold shadow hover:bg-[#B4E81E] transition cursor-pointer"
+            >
               Done
             </button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          <form onSubmit={handleSubmit} className="p-6 space-y-4">
             {serverError && (
-              <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700">
+              <div className="flex items-start gap-2 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-700">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>{serverError}</span>
               </div>
             )}
 
-            {/* Total balance info */}
-            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-center gap-2">
-              <ArrowLeftRight className="w-4 h-4 shrink-0 text-emerald-600" />
-              <span>Total available balance stays the same after a transfer.</span>
-            </div>
-
-            {/* Direction selector */}
+            {/* Direction Selector */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-2">Transfer Direction</label>
-              <div className="flex items-center justify-between p-4 rounded-2xl border-2 border-emerald-300 bg-emerald-50">
-                <div className="text-center">
-                  <p className="text-xs font-bold text-slate-700">{sourceLabel}</p>
-                  <p className="text-[11px] text-slate-500 mt-0.5">₹{parseFloat(sourceBalance || 0).toFixed(2)}</p>
+              <label className="block text-xs font-bold text-stone-600 mb-2 uppercase tracking-wider">
+                Transfer Direction
+              </label>
+              <div className="flex items-center justify-between p-4 rounded-3xl border border-stone-200 bg-[#FAF6F0]">
+                <div className="text-center min-w-[70px]">
+                  <p className="text-xs font-extrabold text-[#24151B]">{sourceLabel}</p>
+                  <p className="text-[10px] text-stone-500 font-semibold mt-0.5">₹{parseFloat(sourceBalance || 0).toFixed(2)}</p>
                 </div>
                 <button
-                  type="button" onClick={toggleSource}
-                  className="p-2 rounded-xl bg-white border border-emerald-300 hover:bg-emerald-100 transition cursor-pointer"
-                  title="Swap direction"
+                  type="button"
+                  onClick={toggleSource}
+                  className="p-2.5 rounded-full bg-white border border-stone-200 hover:border-[#FF902B] hover:bg-[#FFF0E2] transition-all cursor-pointer shadow-2xs"
+                  title="Swap source and destination"
                 >
-                  <ArrowLeftRight className="w-5 h-5 text-emerald-600" />
+                  <ArrowLeftRight className="w-4 h-4 text-[#FF902B]" />
                 </button>
-                <div className="text-center">
-                  <p className="text-xs font-bold text-slate-700">{destLabel}</p>
-                  <p className="text-[11px] text-slate-500 mt-0.5">receives</p>
+                <div className="text-center min-w-[70px]">
+                  <p className="text-xs font-extrabold text-[#24151B]">{destLabel}</p>
+                  <p className="text-[10px] text-stone-400 mt-0.5">receives</p>
                 </div>
               </div>
-              <p className="mt-1.5 text-[10px] text-slate-400 text-center">
-                Tap ⇄ to swap direction
+              <p className="mt-1.5 text-[10px] text-stone-400 text-center">
+                Tap ⇄ to swap transfer direction
               </p>
             </div>
 
             {/* Amount */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Amount (₹) <span className="text-red-500">*</span>
+              <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">
+                Amount (₹) <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">₹</span>
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 font-extrabold text-sm">₹</span>
                 <input
-                  type="number" min="0.01" step="0.01" placeholder="0.00"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  placeholder="0.00"
                   value={form.amount}
                   onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-                  className={`w-full pl-7 pr-4 py-3 rounded-xl border text-sm font-semibold text-slate-900 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition ${errors.amount ? 'border-red-400' : 'border-slate-200'}`}
+                  className={`w-full pl-9 pr-4 py-3 rounded-2xl border text-sm font-extrabold text-[#24151B] bg-[#FAF6F0] focus:bg-white focus:outline-none focus:border-[#FF902B] transition-all ${errors.amount ? 'border-rose-400' : 'border-stone-200'}`}
                 />
               </div>
-              {errors.amount && <p className="mt-1 text-xs text-red-600">{errors.amount}</p>}
+              {errors.amount && <p className="mt-1 text-xs text-rose-600 font-semibold">{errors.amount}</p>}
             </div>
 
             {/* Note */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Note</label>
+              <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">Note</label>
               <input
-                type="text" placeholder="Min 3 characters…"
+                type="text"
+                placeholder="Description…"
                 value={form.note}
                 onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
-                className={`w-full px-4 py-3 rounded-xl border text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition ${errors.note ? 'border-red-400' : 'border-slate-200'}`}
+                className={`w-full px-4 py-3 rounded-2xl border text-xs sm:text-sm bg-[#FAF6F0] text-[#24151B] focus:bg-white focus:outline-none focus:border-[#FF902B] transition-all ${errors.note ? 'border-rose-400' : 'border-stone-200'}`}
               />
-              {errors.note && <p className="mt-1 text-xs text-red-600">{errors.note}</p>}
+              {errors.note && <p className="mt-1 text-xs text-rose-600 font-semibold">{errors.note}</p>}
             </div>
 
             {/* Date */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Date</label>
+              <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">Date</label>
               <input
-                type="date" value={form.date} max={today()}
+                type="date"
+                value={form.date}
+                max={today()}
                 onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition"
+                className="w-full px-4 py-2.5 rounded-2xl border border-stone-200 text-xs sm:text-sm bg-[#FAF6F0] text-[#24151B] focus:bg-white focus:outline-none focus:border-[#FF902B] transition"
               />
             </div>
 
             {/* Submit */}
             <button
-              type="submit" disabled={status === 'loading'}
-              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-sm font-bold shadow hover:from-emerald-600 hover:to-teal-700 transition disabled:opacity-60 flex items-center justify-center gap-2 cursor-pointer"
+              type="submit"
+              disabled={status === 'loading'}
+              className="w-full py-3.5 rounded-full bg-[#075743] text-white text-xs font-extrabold shadow-md hover:bg-[#054333] active:scale-95 transition disabled:opacity-60 flex items-center justify-center gap-2 cursor-pointer mt-2"
             >
               {status === 'loading' ? (
-                <><Loader2 className="w-4 h-4 animate-spin" /> Transferring…</>
+                <><Loader2 className="w-4 h-4 animate-spin text-white" /> Transferring…</>
               ) : (
-                <><ArrowLeftRight className="w-4 h-4" /> Transfer {sourceLabel} → {destLabel}</>
+                <><ArrowLeftRight className="w-4 h-4 text-[#C5F52A]" /> Transfer {sourceLabel} → {destLabel}</>
               )}
             </button>
           </form>

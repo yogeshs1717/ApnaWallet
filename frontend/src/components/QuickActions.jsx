@@ -1,9 +1,15 @@
 /**
  * QuickActions.jsx
- * Prompt 05 — Milestone 3, 6, 10: Wire Lend and Credit quick actions
+ * Redesigned for Premium Fintech UI with playful pastel rounded icons
  */
 import React, { useEffect, useState } from 'react';
-import { PlusCircle, ArrowDownRight, HandCoins, CreditCard, ArrowLeftRight, Sparkles } from 'lucide-react';
+import { 
+  Plus, 
+  Minus, 
+  ArrowLeftRight, 
+  HandCoins, 
+  CreditCard 
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import AddCashModal from './transactions/AddCashModal';
 import ExpenseModal from './transactions/ExpenseModal';
@@ -11,9 +17,9 @@ import TransferModal from './transactions/TransferModal';
 import LendModal from './transactions/LendModal';
 import CreditModal from './transactions/CreditModal';
 
-export default function QuickActions({ expenseOpenSignal, onTransactionSuccess }) {
+export default function QuickActions({ expenseOpenSignal, addCashOpenSignal, onTransactionSuccess }) {
   const { selectedAccount, refreshUserData, updateAccountLocally, isAuthenticated, setAuthView } = useAuth();
-  const [activeModal, setActiveModal] = useState(null); // 'add-cash' | 'expense' | 'transfer' | 'lend' | 'credit' | null
+  const [activeModal, setActiveModal] = useState(null);
 
   useEffect(() => {
     if (expenseOpenSignal > 0 && isAuthenticated) {
@@ -21,46 +27,46 @@ export default function QuickActions({ expenseOpenSignal, onTransactionSuccess }
     }
   }, [expenseOpenSignal, isAuthenticated]);
 
+  useEffect(() => {
+    if (addCashOpenSignal > 0 && isAuthenticated) {
+      setActiveModal('add-cash');
+    }
+  }, [addCashOpenSignal, isAuthenticated]);
+
   const actions = [
     {
       id: 'add-cash',
       label: 'Add Cash',
-      icon: PlusCircle,
-      bgColor: 'bg-orange-50 text-orange-600 border-orange-100',
-      live: true,
+      icon: Plus,
+      bgCircle: 'bg-[#FFF0E2] text-[#FF902B]',
     },
     {
       id: 'expense',
       label: 'Expense',
-      icon: ArrowDownRight,
-      bgColor: 'bg-rose-50 text-rose-600 border-rose-100',
-      live: true,
+      icon: Minus,
+      bgCircle: 'bg-[#FDE8EC] text-[#E11D48]',
     },
     {
       id: 'transfer',
       label: 'Transfer',
       icon: ArrowLeftRight,
-      bgColor: 'bg-emerald-50 text-emerald-600 border-emerald-100',
-      live: true,
+      bgCircle: 'bg-[#E4F5EE] text-[#075743]',
     },
     {
       id: 'lend',
       label: 'Lend',
       icon: HandCoins,
-      bgColor: 'bg-amber-50 text-amber-700 border-amber-100',
-      live: true, // PROMPT 05 LIVE
+      bgCircle: 'bg-[#FEF9C3] text-[#D97706]',
     },
     {
       id: 'credit',
       label: 'Credit',
       icon: CreditCard,
-      bgColor: 'bg-blue-50 text-blue-600 border-blue-100',
-      live: true, // PROMPT 05 LIVE
+      bgCircle: 'bg-[#F2EAF9] text-[#7E45A8]',
     },
   ];
 
   function handleClick(action) {
-    if (!action.live) return;
     if (!isAuthenticated) {
       setAuthView('login');
       return;
@@ -68,7 +74,6 @@ export default function QuickActions({ expenseOpenSignal, onTransactionSuccess }
     setActiveModal(action.id);
   }
 
-  // Called when a modal reports success; updates balance instantly and closes modal
   function handleSuccess(updatedAccount, _record) {
     if (updatedAccount && updateAccountLocally) {
       updateAccountLocally(updatedAccount);
@@ -80,39 +85,30 @@ export default function QuickActions({ expenseOpenSignal, onTransactionSuccess }
 
   return (
     <>
-      <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm space-y-4">
+      <div className="bg-white rounded-[28px] p-5 sm:p-6 border border-stone-200/60 shadow-[0_8px_30px_rgba(51,27,36,0.04)] space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-800 tracking-wide uppercase">Quick Actions</h3>
-          <span className="text-xs text-slate-400">Tap to record transaction</span>
+          <h3 className="text-xs font-bold text-stone-500 tracking-wider uppercase">
+            Quick Actions
+          </h3>
+          <span className="text-[11px] text-stone-400">Tap to record transaction</span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-5 gap-2 sm:gap-3">
           {actions.map((act) => {
             const Icon = act.icon;
-            const isComingSoon = !act.live;
             return (
               <button
                 key={act.id}
+                type="button"
                 onClick={() => handleClick(act)}
-                disabled={isComingSoon}
-                title={isComingSoon ? `Coming in Prompt ${act.prompt}` : act.label}
-                className={`relative flex flex-col items-center justify-center p-3.5 rounded-2xl border border-slate-100 transition-all group text-center
-                  ${isComingSoon
-                    ? 'opacity-50 cursor-not-allowed bg-slate-50/30'
-                    : 'hover:border-amber-300 hover:shadow-md cursor-pointer bg-slate-50/50 hover:bg-white'
-                  }`}
+                className="flex flex-col items-center justify-center p-2 sm:p-3 rounded-2xl hover:bg-[#FAF6F0] active:scale-95 transition-all group cursor-pointer"
               >
-                <div className={`w-11 h-11 rounded-2xl ${act.bgColor} flex items-center justify-center mb-2.5 shadow-xs ${!isComingSoon ? 'transition-transform group-hover:scale-110' : ''}`}>
-                  <Icon className="w-5 h-5" />
+                <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full ${act.bgCircle} flex items-center justify-center shadow-xs transition-transform group-hover:scale-105 duration-200 mb-2`}>
+                  <Icon className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
-                <span className={`text-xs font-semibold text-slate-800 ${!isComingSoon ? 'group-hover:text-amber-800' : ''}`}>
+                <span className="text-[11px] sm:text-xs font-bold text-[#24151B] text-center line-clamp-1">
                   {act.label}
                 </span>
-                {isComingSoon && (
-                  <span className="absolute top-1.5 right-1.5 text-[9px] font-bold bg-slate-200 text-slate-500 rounded px-1 py-0.5 leading-none">
-                    P{act.prompt}
-                  </span>
-                )}
               </button>
             );
           })}

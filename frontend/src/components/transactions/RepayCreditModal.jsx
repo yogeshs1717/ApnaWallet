@@ -75,78 +75,81 @@ export default function RepayCreditModal({ credit, cashBalance, bankBalance, onS
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-[#331B24]/40 backdrop-blur-sm animate-in fade-in duration-200"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-full sm:max-w-md bg-white sm:rounded-3xl rounded-t-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
+      <div className="w-full sm:max-w-md bg-[#FAF6F0] rounded-t-[36px] sm:rounded-[36px] shadow-[0_20px_60px_rgba(51,27,36,0.25)] border border-[#331B24]/10 overflow-hidden animate-in slide-in-from-bottom-6 duration-300 font-sans">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-blue-500/10 to-indigo-500/10">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-[#331B24]/5 bg-white">
           <div>
-            <h2 className="text-base font-bold text-slate-900">Repay Credit / Debt</h2>
-            <p className="text-xs text-slate-500">To {credit.creditor_name}</p>
+            <h2 className="text-base font-extrabold text-[#331B24] tracking-tight">Repay Credit / Debt</h2>
+            <p className="text-xs text-[#331B24]/60 font-medium">To {credit.creditor_name}</p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 transition-colors cursor-pointer">
-            <X className="w-5 h-5" />
+          <button
+            onClick={onClose}
+            className="w-9 h-9 rounded-full bg-[#FAF6F0] hover:bg-[#331B24]/10 text-[#331B24] flex items-center justify-center transition-all cursor-pointer"
+          >
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {status === 'success' ? (
-          <div className="p-8 text-center space-y-3">
-            <div className="w-16 h-16 rounded-full bg-green-50 mx-auto flex items-center justify-center">
-              <CheckCircle className="w-9 h-9 text-green-500" />
+          <div className="p-8 text-center space-y-4 bg-white">
+            <div className="w-16 h-16 rounded-full bg-[#C5F52A]/30 mx-auto flex items-center justify-center">
+              <CheckCircle className="w-9 h-9 text-[#075743]" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900">Debt Repaid!</h3>
-            <p className="text-sm text-slate-500">
+            <h3 className="text-xl font-extrabold text-[#331B24]">Debt Repaid!</h3>
+            <p className="text-sm text-[#331B24]/70 max-w-xs mx-auto leading-relaxed">
               Your balance was deducted and liability reduced.
             </p>
             <button
               onClick={onClose}
-              className="mt-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-sm font-bold shadow cursor-pointer"
+              className="mt-3 px-8 py-3.5 rounded-full bg-[#331B24] text-white text-sm font-bold shadow hover:bg-[#41232E] transition-all cursor-pointer"
             >
               Done
             </button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <form onSubmit={handleSubmit} className="p-6 space-y-4 bg-white">
             {serverError && (
-              <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-500" />
                 <span>{serverError}</span>
               </div>
             )}
 
             {/* Current Debt Summary */}
-            <div className="p-3.5 rounded-2xl bg-blue-50/70 border border-blue-200/80 text-xs text-slate-800 space-y-1">
+            <div className="p-4 rounded-2xl bg-[#D2B4ED]/20 border border-[#D2B4ED]/40 text-xs text-[#331B24] space-y-1.5">
               <div className="flex justify-between">
-                <span className="text-slate-500">Creditor:</span>
-                <span className="font-bold text-slate-900">{credit.creditor_name}</span>
+                <span className="text-[#331B24]/60 font-medium">Creditor:</span>
+                <span className="font-extrabold text-[#331B24]">{credit.creditor_name}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Original Obligation:</span>
-                <span className="font-semibold">₹{parseFloat(credit.original_amount).toFixed(2)}</span>
+                <span className="text-[#331B24]/60 font-medium">Original Obligation:</span>
+                <span className="font-bold">₹{parseFloat(credit.original_amount).toFixed(2)}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-blue-900 font-bold">Outstanding Debt:</span>
-                <span className="text-blue-900 font-bold text-sm">₹{maxRepay.toFixed(2)}</span>
+              <div className="flex justify-between pt-1 border-t border-[#331B24]/10">
+                <span className="text-[#331B24] font-extrabold">Outstanding Debt:</span>
+                <span className="text-[#331B24] font-extrabold text-sm">₹{maxRepay.toFixed(2)}</span>
               </div>
             </div>
 
             {/* Repayment Amount */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-semibold text-slate-700">
-                  Repayment Amount (₹) <span className="text-red-500">*</span>
+                <label className="text-xs font-bold text-[#331B24]/80">
+                  Repayment Amount (₹) <span className="text-rose-500">*</span>
                 </label>
                 <button
                   type="button"
                   onClick={() => setForm((f) => ({ ...f, amount: String(Math.min(maxRepay, selectedSourceBal)) }))}
-                  className="text-[11px] font-bold text-blue-600 hover:text-blue-700 cursor-pointer"
+                  className="text-[11px] font-extrabold text-[#331B24] underline hover:text-[#FF902B] cursor-pointer"
                 >
                   Pay Max (₹{Math.min(maxRepay, selectedSourceBal).toFixed(2)})
                 </button>
               </div>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">₹</span>
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#331B24]/40 font-bold text-base">₹</span>
                 <input
                   type="number"
                   min="0.01"
@@ -155,16 +158,16 @@ export default function RepayCreditModal({ credit, cashBalance, bankBalance, onS
                   placeholder="0.00"
                   value={form.amount}
                   onChange={set('amount')}
-                  className={`w-full pl-7 pr-4 py-3 rounded-xl border text-sm font-semibold text-slate-900 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white transition ${errors.amount ? 'border-red-400' : 'border-slate-200'}`}
+                  className={`w-full pl-9 pr-4 py-3 rounded-2xl border text-base font-extrabold text-[#331B24] bg-[#FAF6F0] focus:outline-none focus:ring-2 focus:ring-[#331B24]/20 focus:bg-white transition ${errors.amount ? 'border-rose-400' : 'border-[#331B24]/10'}`}
                 />
               </div>
-              {errors.amount && <p className="mt-1 text-xs text-red-600">{errors.amount}</p>}
+              {errors.amount && <p className="mt-1 text-xs text-rose-600 font-semibold">{errors.amount}</p>}
             </div>
 
             {/* Payment Source */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Pay From</label>
-              <div className="grid grid-cols-2 gap-2">
+              <label className="block text-xs font-bold text-[#331B24]/80 mb-1.5">Pay From</label>
+              <div className="grid grid-cols-2 gap-2.5">
                 {[
                   { value: 'CASH', label: 'Cash Balance', bal: cashBalance, Icon: Wallet },
                   { value: 'BANK', label: 'Bank Balance', bal: bankBalance, Icon: Landmark },
@@ -173,16 +176,16 @@ export default function RepayCreditModal({ credit, cashBalance, bankBalance, onS
                     key={value}
                     type="button"
                     onClick={() => setForm((f) => ({ ...f, payment_source: value }))}
-                    className={`flex items-center gap-2.5 p-3 rounded-xl border-2 transition cursor-pointer ${
+                    className={`flex items-center gap-2.5 p-3 rounded-2xl border-2 transition-all cursor-pointer ${
                       form.payment_source === value
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-slate-200 bg-white hover:border-slate-300'
+                        ? 'border-[#331B24] bg-[#FAF6F0]'
+                        : 'border-transparent bg-[#FAF6F0]/60 hover:bg-[#FAF6F0]'
                     }`}
                   >
-                    <Icon className={`w-5 h-5 ${form.payment_source === value ? 'text-blue-600' : 'text-slate-400'}`} />
+                    <Icon className={`w-4 h-4 ${form.payment_source === value ? 'text-[#331B24]' : 'text-[#331B24]/50'}`} />
                     <div className="text-left">
-                      <p className={`text-xs font-bold ${form.payment_source === value ? 'text-blue-700' : 'text-slate-700'}`}>{label}</p>
-                      <p className="text-[10px] text-slate-400">₹{parseFloat(bal || 0).toFixed(2)}</p>
+                      <p className={`text-xs font-bold ${form.payment_source === value ? 'text-[#331B24]' : 'text-[#331B24]/70'}`}>{label}</p>
+                      <p className="text-[10px] text-[#331B24]/50 font-medium">₹{parseFloat(bal || 0).toFixed(2)}</p>
                     </div>
                   </button>
                 ))}
@@ -191,25 +194,25 @@ export default function RepayCreditModal({ credit, cashBalance, bankBalance, onS
 
             {/* Date */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Payment Date</label>
+              <label className="block text-xs font-bold text-[#331B24]/80 mb-1.5">Payment Date</label>
               <input
                 type="date"
                 value={form.date}
                 max={today()}
                 onChange={set('date')}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white transition"
+                className="w-full px-4 py-2.5 rounded-2xl border border-[#331B24]/10 text-xs font-semibold text-[#331B24] bg-[#FAF6F0] focus:outline-none focus:ring-2 focus:ring-[#331B24]/20 focus:bg-white transition"
               />
             </div>
 
             {/* Note */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Note (Optional)</label>
+              <label className="block text-xs font-bold text-[#331B24]/80 mb-1.5">Note (Optional)</label>
               <input
                 type="text"
                 placeholder={`Repayment to ${credit.creditor_name}`}
                 value={form.note}
                 onChange={set('note')}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white transition"
+                className="w-full px-4 py-2.5 rounded-2xl border border-[#331B24]/10 text-xs font-semibold text-[#331B24] bg-[#FAF6F0] focus:outline-none focus:ring-2 focus:ring-[#331B24]/20 focus:bg-white transition"
               />
             </div>
 
@@ -217,12 +220,12 @@ export default function RepayCreditModal({ credit, cashBalance, bankBalance, onS
             <button
               type="submit"
               disabled={status === 'loading'}
-              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-sm font-bold shadow hover:from-blue-600 hover:to-indigo-700 transition disabled:opacity-60 flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full py-4 rounded-full bg-[#331B24] hover:bg-[#41232E] text-white text-sm font-extrabold tracking-wide shadow-md transition-all disabled:opacity-60 flex items-center justify-center gap-2 cursor-pointer mt-2"
             >
               {status === 'loading' ? (
-                <><Loader2 className="w-4 h-4 animate-spin" /> Recording Repayment…</>
+                <><Loader2 className="w-4 h-4 animate-spin text-[#C5F52A]" /> Recording Repayment…</>
               ) : (
-                <><CheckCircle className="w-4 h-4" /> Confirm Debt Repayment</>
+                <><CheckCircle className="w-4 h-4 text-[#C5F52A]" /> Confirm Debt Repayment</>
               )}
             </button>
           </form>

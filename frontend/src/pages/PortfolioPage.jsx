@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Target, TrendingUp, Plus, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, Trash2, Loader2 } from 'lucide-react';
+import { Target, TrendingUp, Plus, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, Trash2, Loader2, Sparkles, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
   actOnSavingsGoal,
@@ -30,11 +30,11 @@ const sanitizeDate = (val) => {
 
 const initialGoalForm = { name: '', target_amount: '', target_date: '' };
 const inputClass =
-  'w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:border-orange-400 focus:outline-none';
+  'w-full rounded-2xl border border-stone-200 bg-[#FAF6F0] px-3.5 py-3 text-sm text-[#24151B] focus:border-[#FF902B] focus:bg-white focus:outline-none transition-all';
 
 function Field({ label, ...props }) {
   return (
-    <label className="space-y-1 text-xs font-semibold text-slate-600">
+    <label className="space-y-1.5 text-xs font-bold text-stone-600 block">
       <span>{label}</span>
       <input className={inputClass} {...props} />
     </label>
@@ -166,11 +166,18 @@ export default function PortfolioPage() {
 
   if (!isAuthenticated) {
     return (
-      <div className="rounded-3xl bg-white p-8 text-center shadow-sm">
-        <h2 className="text-xl font-bold">Sign in to manage your portfolio</h2>
+      <div className="rounded-[32px] bg-white p-8 sm:p-12 text-center border border-stone-200/60 shadow-[0_8px_30px_rgba(51,27,36,0.04)] max-w-md mx-auto my-8 space-y-4">
+        <div className="w-16 h-16 rounded-full bg-[#FFF0E2] text-[#FF902B] mx-auto flex items-center justify-center">
+          <Target className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-extrabold text-[#24151B]">Sign in to manage portfolio</h2>
+        <p className="text-xs text-stone-400">
+          Track assets, set savings targets, and keep emergency funds separate from spendable cash.
+        </p>
         <button
+          type="button"
           onClick={() => setAuthView('login')}
-          className="mt-4 rounded-xl bg-orange-500 px-5 py-2 text-sm font-bold text-white"
+          className="mt-4 w-full rounded-full bg-[#FF902B] py-3 text-xs font-extrabold text-white hover:bg-[#E0791B] active:scale-95 transition-all shadow-md cursor-pointer"
         >
           Sign In
         </button>
@@ -181,58 +188,96 @@ export default function PortfolioPage() {
   const active = savings?.active_goal;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-200">
       <div>
-        <h1 className="text-2xl font-black text-slate-900">Savings & Investments</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Reserve money intentionally and track assets without turning them into expenses.
+        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#24151B]">
+          Savings &amp; Investments
+        </h1>
+        <p className="mt-1 text-xs sm:text-sm text-stone-400">
+          Reserve money intentionally and track assets without turning them into daily expenses.
         </p>
       </div>
 
-      {error && <div className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
+      {error && <div className="rounded-2xl bg-rose-50 border border-rose-200 p-3.5 text-xs text-rose-700 font-semibold">{error}</div>}
 
+      {/* Hero Bento Cards: Saved Wallet vs Investment Portfolio */}
       <section className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 p-6 text-white shadow-lg">
-          <div className="flex items-center gap-2 text-sm font-bold">
-            <Target className="h-5 w-5" /> Saved Wallet
+        {/* Saved Wallet (Deep Plum Card) */}
+        <div className="rounded-[32px] bg-[#331B24] text-white p-6 sm:p-8 shadow-[0_16px_40px_rgba(51,27,36,0.18)] border border-[#462532] flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wider text-[#D2B4ED]">
+                <Target className="h-4 w-4 text-[#C5F52A]" />
+                <span>Saved Wallet</span>
+              </div>
+              <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-white/10 text-[#C5F52A]">
+                RESERVED
+              </span>
+            </div>
+            <div className="mt-4 text-3xl sm:text-4xl font-extrabold text-[#FAF6F0]">
+              ₹{money(savings?.saved_wallet_balance)}
+            </div>
           </div>
-          <div className="mt-4 text-3xl font-black">₹{money(savings?.saved_wallet_balance)}</div>
-          <p className="mt-1 text-xs text-emerald-100">Excluded from Available Balance</p>
+          <p className="mt-4 text-xs text-[#D2B4ED]/80">
+            Excluded from your spendable Available Balance.
+          </p>
         </div>
-        <div className="rounded-3xl bg-white p-6 shadow-sm border border-slate-100">
-          <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
-            <TrendingUp className="h-5 w-5 text-orange-500" /> Investment Portfolio
+
+        {/* Investment Portfolio (Clean White Card) */}
+        <div className="rounded-[32px] bg-white p-6 sm:p-8 border border-stone-200/60 shadow-[0_8px_30px_rgba(51,27,36,0.04)] flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wider text-stone-500">
+                <TrendingUp className="h-4 w-4 text-[#FF902B]" />
+                <span>Investment Portfolio</span>
+              </div>
+              <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-[#FFF0E2] text-[#FF902B]">
+                GROWTH
+              </span>
+            </div>
+            <div className="mt-4 text-3xl sm:text-4xl font-extrabold text-[#24151B]">
+              ₹{money(investments?.total_invested)}
+            </div>
           </div>
-          <div className="mt-4 text-3xl font-black text-slate-900">
-            ₹{money(investments?.total_invested)}
-          </div>
-          <p className="mt-1 text-xs text-slate-400">Tracked separately from Available Balance</p>
+          <p className="mt-4 text-xs text-stone-400">
+            Gold, stocks, crypto &amp; assets tracked independently.
+          </p>
         </div>
       </section>
 
       {/* Active Savings Goal */}
-      <section className="rounded-3xl bg-white p-5 shadow-sm border border-slate-100 space-y-4">
+      <section className="rounded-[32px] bg-white p-6 sm:p-8 border border-stone-200/60 shadow-[0_8px_30px_rgba(51,27,36,0.04)] space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="font-bold">Active savings goal</h2>
-          {active && <span className="text-xs font-bold text-emerald-600">{active.progress_percentage}%</span>}
+          <div>
+            <h2 className="text-base sm:text-lg font-extrabold text-[#24151B]">Active Savings Goal</h2>
+            <p className="text-[11px] text-stone-400">Lock money away toward a target</p>
+          </div>
+          {active && (
+            <span className="text-xs font-extrabold px-3 py-1 rounded-full bg-[#E4F5EE] text-[#075743]">
+              {active.progress_percentage}% Reached
+            </span>
+          )}
         </div>
+
         {active ? (
-          <>
-            <div className="flex justify-between text-sm">
-              <span>{active.name}</span>
-              <span>
-                ₹{money(active.saved_amount)} / ₹{money(active.target_amount)}
+          <div className="space-y-4 pt-2">
+            <div className="flex justify-between items-baseline text-sm">
+              <span className="font-extrabold text-[#24151B] text-base">{active.name}</span>
+              <span className="font-bold text-stone-500">
+                <span className="text-[#075743] font-extrabold">₹{money(active.saved_amount)}</span> / ₹{money(active.target_amount)}
               </span>
             </div>
-            <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+
+            <div className="h-3 overflow-hidden rounded-full bg-stone-100 p-0.5">
               <div
-                className="h-full rounded-full bg-emerald-500 transition-all"
-                style={{ width: `${active.progress_percentage}%` }}
+                className="h-full rounded-full bg-[#C5F52A] transition-all duration-500 shadow-xs"
+                style={{ width: `${Math.min(100, active.progress_percentage || 0)}%` }}
               />
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 pt-2">
               <Field
-                label="Amount"
+                label="Amount (₹)"
                 type="number"
                 min="0.01"
                 step="any"
@@ -244,11 +289,11 @@ export default function PortfolioPage() {
               <button
                 type="button"
                 disabled={isSubmitting || !amount || Number(amount) <= 0}
-                className="mt-5 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="mt-6 flex items-center justify-center gap-1.5 rounded-full bg-[#C5F52A] px-4 py-3 text-xs font-extrabold text-[#1C1014] hover:bg-[#B4E81E] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xs cursor-pointer"
                 onClick={handleDeposit}
               >
                 {isSubmitting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin text-[#1C1014]" />
                 ) : (
                   <ArrowDownToLine className="h-4 w-4" />
                 )}
@@ -257,7 +302,7 @@ export default function PortfolioPage() {
               <button
                 type="button"
                 disabled={isSubmitting || !amount || Number(amount) <= 0}
-                className="mt-5 flex items-center justify-center gap-1.5 rounded-xl bg-orange-500 px-3 py-2 text-xs font-bold text-white hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="mt-6 flex items-center justify-center gap-1.5 rounded-full bg-[#FF902B] px-4 py-3 text-xs font-extrabold text-white hover:bg-[#E0791B] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xs cursor-pointer"
                 onClick={handleWithdraw}
               >
                 {isSubmitting ? (
@@ -270,16 +315,16 @@ export default function PortfolioPage() {
               <button
                 type="button"
                 disabled={isSubmitting}
-                className="mt-5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="mt-6 rounded-full border border-stone-200 px-4 py-3 text-xs font-bold text-stone-600 hover:bg-stone-50 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 onClick={handleCancelGoal}
               >
                 Cancel
               </button>
             </div>
-          </>
+          </div>
         ) : (
           <form
-            className="grid gap-3 sm:grid-cols-3"
+            className="grid gap-3 sm:grid-cols-3 pt-2"
             onSubmit={(e) => {
               e.preventDefault();
               run(async () => {
@@ -296,7 +341,7 @@ export default function PortfolioPage() {
               onChange={(e) => setGoalForm({ ...goalForm, name: e.target.value })}
             />
             <Field
-              label="Target amount"
+              label="Target amount (₹)"
               required
               type="number"
               min="0.01"
@@ -313,44 +358,50 @@ export default function PortfolioPage() {
               value={goalForm.target_date}
               onChange={(e) => setGoalForm({ ...goalForm, target_date: sanitizeDate(e.target.value) })}
             />
-            <button className="rounded-xl bg-orange-500 px-4 py-2 text-sm font-bold text-white sm:col-span-3 hover:bg-orange-600 transition">
-              <Plus className="mr-1 inline h-4 w-4" /> Create Goal
+            <button 
+              type="submit"
+              className="rounded-full bg-[#C5F52A] px-5 py-3.5 text-xs font-extrabold text-[#1C1014] sm:col-span-3 hover:bg-[#B4E81E] active:scale-95 transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              <Plus className="h-4 w-4" /> Create Savings Goal
             </button>
           </form>
         )}
       </section>
 
       {/* Goal History */}
-      <section className="rounded-3xl bg-white p-5 shadow-sm border border-slate-100 space-y-4">
-        <h2 className="font-bold">Goal history</h2>
-        {(savings?.goals || [])
-          .filter((g) => g.status !== 'ACTIVE')
-          .map((g) => (
-            <div
-              key={g.id}
-              className="flex items-center justify-between rounded-xl bg-slate-50 p-3 text-sm text-slate-500"
-            >
-              <span className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                {g.name}
-              </span>
-              <span>
-                {g.status === 'COMPLETED' ? 'Mission Accomplished' : 'Cancelled'} · ₹{money(g.saved_amount)}
-              </span>
-            </div>
-          ))}
+      <section className="rounded-[32px] bg-white p-6 sm:p-8 border border-stone-200/60 shadow-[0_8px_30px_rgba(51,27,36,0.04)] space-y-4">
+        <h2 className="text-base sm:text-lg font-extrabold text-[#24151B]">Goal History</h2>
+        {(savings?.goals || []).filter((g) => g.status !== 'ACTIVE').length === 0 ? (
+          <p className="text-xs text-stone-400 py-3">No past savings goals recorded yet.</p>
+        ) : (
+          (savings?.goals || [])
+            .filter((g) => g.status !== 'ACTIVE')
+            .map((g) => (
+              <div
+                key={g.id}
+                className="flex items-center justify-between rounded-2xl bg-[#FAF6F0] p-3.5 text-xs font-semibold text-stone-600"
+              >
+                <span className="flex items-center gap-2 font-bold text-[#24151B]">
+                  <CheckCircle2 className="h-4 w-4 text-[#075743]" />
+                  {g.name}
+                </span>
+                <span>
+                  {g.status === 'COMPLETED' ? 'Mission Accomplished' : 'Cancelled'} • ₹{money(g.saved_amount)}
+                </span>
+              </div>
+            ))
+        )}
       </section>
 
       {/* Add Investment */}
-      <section className="rounded-3xl bg-white p-5 shadow-sm border border-slate-100 space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="font-bold">Add investment asset</h2>
-            <p className="text-xs text-slate-400">Tracked as a separate asset without touching your main wallet balance.</p>
-          </div>
+      <section className="rounded-[32px] bg-white p-6 sm:p-8 border border-stone-200/60 shadow-[0_8px_30px_rgba(51,27,36,0.04)] space-y-4">
+        <div>
+          <h2 className="text-base sm:text-lg font-extrabold text-[#24151B]">Record Investment Asset</h2>
+          <p className="text-xs text-stone-400">Tracked as a separate asset without touching your main wallet balance.</p>
         </div>
+
         <form
-          className="grid gap-3 sm:grid-cols-2"
+          className="grid gap-3 sm:grid-cols-2 pt-2"
           onSubmit={(e) => {
             e.preventDefault();
             run(async () => {
@@ -369,28 +420,28 @@ export default function PortfolioPage() {
           <Field
             label="Investment name"
             required
-            placeholder="e.g. Gold, Nifty 50"
+            placeholder="e.g. Gold, Nifty 50, Bitcoin"
             value={investmentForm.name}
             onChange={(e) => setInvestmentForm({ ...investmentForm, name: e.target.value })}
           />
           <Field
-            label="Amount invested"
+            label="Amount invested (₹)"
             required
             type="number"
             min="0.01"
             step="any"
-            placeholder="e.g. 450 or 450.55"
+            placeholder="e.g. 5000"
             value={investmentForm.amount}
             onChange={(e) => setInvestmentForm({ ...investmentForm, amount: e.target.value })}
           />
           <Field
-            label="Platform / site"
-            placeholder="e.g. Paytm, Zerodha, Groww"
+            label="Platform / Broker"
+            placeholder="e.g. Zerodha, Groww, CoinDCX"
             value={investmentForm.platform}
             onChange={(e) => setInvestmentForm({ ...investmentForm, platform: e.target.value })}
           />
-          <label className="space-y-1 text-xs font-semibold text-slate-600">
-            <span>Type</span>
+          <label className="space-y-1.5 text-xs font-bold text-stone-600 block">
+            <span>Asset Type</span>
             <select
               className={inputClass}
               value={investmentForm.investment_type}
@@ -413,48 +464,53 @@ export default function PortfolioPage() {
               setInvestmentForm({ ...investmentForm, purchase_date: sanitizeDate(e.target.value) })
             }
           />
-          <button className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-bold text-white sm:col-span-2 hover:bg-orange-600 transition">
+          <button 
+            type="submit"
+            className="rounded-full bg-[#FF902B] px-5 py-3.5 text-xs font-extrabold text-white sm:col-span-2 hover:bg-[#E0791B] active:scale-95 transition-all shadow-md cursor-pointer"
+          >
             Record Purchase
           </button>
         </form>
       </section>
 
       {/* Investment History */}
-      <section className="rounded-3xl bg-white p-5 shadow-sm border border-slate-100 space-y-3">
-        <h2 className="font-bold">Investment history</h2>
+      <section className="rounded-[32px] bg-white p-6 sm:p-8 border border-stone-200/60 shadow-[0_8px_30px_rgba(51,27,36,0.04)] space-y-3">
+        <h2 className="text-base sm:text-lg font-extrabold text-[#24151B]">Investment Assets</h2>
         {(!investments?.investments || investments.investments.length === 0) ? (
-          <div className="rounded-2xl bg-slate-50 p-4 text-center text-sm text-slate-400">
-            No investments recorded yet.
+          <div className="rounded-2xl bg-[#FAF6F0] p-6 text-center text-xs text-stone-400">
+            No investments recorded yet. Record your assets above.
           </div>
         ) : (
           investments.investments.map((i) => (
             <div
               key={i.id}
-              className={`rounded-xl border p-3 ${
-                i.is_closed ? 'bg-slate-50 text-slate-400' : 'border-slate-100'
+              className={`rounded-2xl border p-4 transition-all ${
+                i.is_closed ? 'bg-stone-50 text-stone-400 border-stone-100' : 'bg-[#FAF6F0] border-stone-200/60'
               }`}
             >
-              <div className="flex justify-between text-sm font-bold">
+              <div className="flex justify-between items-baseline text-sm font-extrabold text-[#24151B]">
                 <span>
-                  {i.name} <span className="text-xs font-normal text-slate-400">({i.investment_type})</span>
+                  {i.name} <span className="text-xs font-normal text-stone-400">({i.investment_type})</span>
                 </span>
-                <span>₹{money(i.cost_basis)}</span>
+                <span className="text-[#075743]">₹{money(i.cost_basis)}</span>
               </div>
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2 text-xs text-slate-500">
-                <span>{i.platform || 'Direct'} · {i.purchase_date}</span>
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-stone-200/50 pt-2.5 text-xs text-stone-500">
+                <span>{i.platform || 'Direct'} • {i.purchase_date}</span>
                 <div className="flex items-center gap-2">
                   {!i.is_closed && (
                     <button
-                      className="font-bold text-orange-600 hover:text-orange-700 px-2 py-1 rounded-lg hover:bg-orange-50 transition"
+                      type="button"
+                      className="font-extrabold text-[#FF902B] hover:text-[#E0791B] px-3 py-1 rounded-full bg-white border border-stone-200 shadow-2xs transition"
                       onClick={() =>
                         setSale({ id: i.id, max: i.cost_basis, proceeds: '', cost_basis_sold: '' })
                       }
                     >
-                      Record sale
+                      Record Sale
                     </button>
                   )}
                   <button
-                    className="font-bold text-rose-600 hover:text-rose-700 px-2 py-1 rounded-lg hover:bg-rose-50 transition flex items-center gap-1"
+                    type="button"
+                    className="font-bold text-rose-600 hover:text-rose-700 px-2 py-1 rounded-full hover:bg-rose-50 transition flex items-center gap-1"
                     title="Delete investment asset"
                     onClick={() => {
                       if (window.confirm(`Are you sure you want to delete ${i.name}?`)) {
@@ -469,7 +525,7 @@ export default function PortfolioPage() {
               </div>
               {sale?.id === i.id && (
                 <form
-                  className="mt-3 grid grid-cols-2 gap-2"
+                  className="mt-3 grid grid-cols-2 gap-2 p-3 bg-white rounded-2xl border border-stone-200"
                   onSubmit={(e) => {
                     e.preventDefault();
                     run(async () => {
@@ -482,7 +538,7 @@ export default function PortfolioPage() {
                   }}
                 >
                   <Field
-                    label="Cost basis sold"
+                    label="Cost basis sold (₹)"
                     required
                     type="number"
                     min="0.01"
@@ -493,7 +549,7 @@ export default function PortfolioPage() {
                     onChange={(e) => setSale({ ...sale, cost_basis_sold: e.target.value })}
                   />
                   <Field
-                    label="Actual proceeds"
+                    label="Actual proceeds (₹)"
                     required
                     type="number"
                     min="0"
@@ -502,8 +558,11 @@ export default function PortfolioPage() {
                     value={sale.proceeds}
                     onChange={(e) => setSale({ ...sale, proceeds: e.target.value })}
                   />
-                  <button className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 transition col-span-2">
-                    Record Sale
+                  <button 
+                    type="submit"
+                    className="rounded-full bg-[#075743] px-4 py-2.5 text-xs font-extrabold text-white hover:bg-[#054333] transition col-span-2 cursor-pointer mt-1"
+                  >
+                    Confirm Sale
                   </button>
                 </form>
               )}
@@ -521,23 +580,23 @@ export default function PortfolioPage() {
           onClick={() => setModalFeedback(null)}
         >
           <div
-            className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl text-center space-y-4 border border-slate-100"
+            className="w-full max-w-sm rounded-[36px] bg-white p-6 sm:p-7 shadow-2xl text-center space-y-4 border border-stone-100"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#E4F5EE] text-[#075743]">
               <CheckCircle2 className="h-8 w-8" />
             </div>
             <div>
-              <h3 className="text-lg font-black text-slate-900">{modalFeedback.title}</h3>
-              <p className="mt-2 text-sm text-slate-600">{modalFeedback.message}</p>
+              <h3 className="text-xl font-extrabold text-[#24151B]">{modalFeedback.title}</h3>
+              <p className="mt-2 text-xs text-stone-500">{modalFeedback.message}</p>
             </div>
             <button
               type="button"
               autoFocus
               onClick={() => setModalFeedback(null)}
-              className="w-full rounded-xl bg-orange-500 py-2.5 text-sm font-bold text-white hover:bg-orange-600 active:scale-[0.98] transition shadow-md shadow-orange-500/20"
+              className="w-full rounded-full bg-[#C5F52A] py-3 text-xs font-extrabold text-[#1C1014] hover:bg-[#B4E81E] active:scale-95 transition shadow-sm cursor-pointer"
             >
-              Okay
+              Okay, Got It
             </button>
           </div>
         </div>

@@ -9,6 +9,7 @@ import PlaceholderView from './pages/PlaceholderView';
 import PortfolioPage from './pages/PortfolioPage';
 import BudgetsPage from './pages/BudgetsPage';
 import ReportsPage from './pages/ReportsPage';
+import ProfilePage from './pages/ProfilePage';
 import AuthModal from './components/auth/AuthModal';
 
 const VALID_TABS = ['home', 'activity', 'lending', 'credit', 'portfolio', 'reports', 'budgets', 'more'];
@@ -97,6 +98,7 @@ function MainApp() {
          activeTab === 'portfolio' ? <PortfolioPage /> :
          activeTab === 'reports' ? <ReportsPage /> :
          activeTab === 'budgets' ? <BudgetsPage /> :
+         activeTab === 'more'    ? <ProfilePage onNavigateTab={setActiveTab} /> :
                                     <PlaceholderView section={activeTab} />}
       </AppLayout>
 

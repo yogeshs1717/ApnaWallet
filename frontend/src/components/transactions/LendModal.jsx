@@ -1,13 +1,9 @@
 /**
  * LendModal.jsx
- * Prompt 05 — Milestone 3: Lend Money Workflow
- *
- * Records money lent to an individual.
- * Deducts from Cash or Bank balance atomically.
- * Crucial accounting rule: Lending is an asset exchange, NOT an ordinary expense!
+ * Redesigned with Playful Modern Fintech UI inspired by Taxmate references
  */
 import React, { useState, useRef } from 'react';
-import { X, HandCoins, Wallet, Landmark, Loader2, CheckCircle, AlertCircle, Info } from 'lucide-react';
+import { X, HandCoins, Wallet, Landmark, Loader2, CheckCircle2, AlertCircle, Info, Plus } from 'lucide-react';
 import { createLend } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 
@@ -22,7 +18,6 @@ export default function LendModal({ accountId, onSuccess, onClose, cashBalance, 
   const cash = parseFloat(cashBalance ?? selectedAccount?.cash_balance ?? 0);
   const bank = parseFloat(bankBalance ?? selectedAccount?.bank_balance ?? 0);
 
-  // Smart default: If Cash is empty but Bank has money, default to BANK
   const defaultSource = (cash <= 0 && bank > 0) ? 'BANK' : 'CASH';
 
   const [form, setForm] = useState({
@@ -33,7 +28,7 @@ export default function LendModal({ accountId, onSuccess, onClose, cashBalance, 
     note: '',
   });
   const [errors, setErrors] = useState({});
-  const [status, setStatus] = useState('idle'); // idle | loading | success | error
+  const [status, setStatus] = useState('idle');
   const [serverError, setServerError] = useState('');
   const submitting = useRef(false);
 
@@ -53,7 +48,7 @@ export default function LendModal({ accountId, onSuccess, onClose, cashBalance, 
         if (form.balance_type === 'CASH' && bank >= amt) {
           e.amount = `Insufficient Cash (₹${cash.toFixed(2)}). You have ₹${bank.toFixed(2)} in Bank — please select Bank below.`;
         } else {
-          e.amount = `Insufficient ${form.balance_type === 'CASH' ? 'Cash' : 'Bank'} balance. Available: ₹${selectedBal.toFixed(2)}, requested: ₹${amt.toFixed(2)}.`;
+          e.amount = `Insufficient ${form.balance_type === 'CASH' ? 'Cash' : 'Bank'} balance. Available: ₹${selectedBal.toFixed(2)}.`;
         }
       }
     }
@@ -96,38 +91,45 @@ export default function LendModal({ accountId, onSuccess, onClose, cashBalance, 
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-150"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-full sm:max-w-md bg-white sm:rounded-3xl rounded-t-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-200 max-h-[92vh] flex flex-col">
+      <div className="w-full sm:max-w-md bg-white sm:rounded-[36px] rounded-t-[36px] shadow-2xl overflow-hidden border border-stone-100 animate-in slide-in-from-bottom-4 duration-200 max-h-[92vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-amber-500/10 to-yellow-500/10 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-600 flex items-center justify-center shadow-sm">
-              <HandCoins className="w-5 h-5 text-white" />
+        <div className="flex items-center justify-between px-6 py-5 border-b border-stone-100 bg-[#FAF6F0] shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-[#FFF0E2] text-[#FF902B] flex items-center justify-center shadow-2xs">
+              <HandCoins className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900">Lend Money</h2>
-              <p className="text-xs text-slate-500">Track money given to others</p>
+              <h2 className="text-base font-extrabold text-[#24151B]">Lend Money</h2>
+              <p className="text-[11px] text-stone-400">Track money given to others</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 transition-colors cursor-pointer">
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 rounded-full hover:bg-stone-200/60 text-stone-400 hover:text-stone-700 transition cursor-pointer"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {status === 'success' ? (
-          <div className="p-8 text-center space-y-3">
-            <div className="w-16 h-16 rounded-full bg-green-50 mx-auto flex items-center justify-center">
-              <CheckCircle className="w-9 h-9 text-green-500" />
+          <div className="p-8 text-center space-y-4">
+            <div className="w-16 h-16 rounded-full bg-[#E4F5EE] text-[#075743] mx-auto flex items-center justify-center">
+              <CheckCircle2 className="w-9 h-9" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900">Loan Recorded!</h3>
-            <p className="text-sm text-slate-500">
-              Deducted from your balance and added to your Money Lent receivables.
-            </p>
+            <div>
+              <h3 className="text-xl font-extrabold text-[#24151B]">Loan Recorded!</h3>
+              <p className="text-xs text-stone-500 mt-1">
+                Deducted from your balance and tracked under Money Lent receivables.
+              </p>
+            </div>
             <button
+              type="button"
               onClick={onClose}
-              className="mt-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-600 text-white text-sm font-bold shadow cursor-pointer"
+              className="w-full py-3 rounded-full bg-[#C5F52A] text-[#1C1014] text-xs font-extrabold shadow hover:bg-[#B4E81E] transition cursor-pointer"
             >
               Done
             </button>
@@ -135,42 +137,41 @@ export default function LendModal({ accountId, onSuccess, onClose, cashBalance, 
         ) : (
           <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
             {serverError && (
-              <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700">
+              <div className="flex items-start gap-2 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-700">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>{serverError}</span>
               </div>
             )}
 
-            {/* Financial Info Badge */}
-            <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50/80 border border-amber-200/80 text-[11px] text-amber-900">
-              <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            {/* Info Badge */}
+            <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-[#FFF0E2] text-[11px] text-[#B85700] font-medium border border-amber-200/60">
+              <Info className="w-4 h-4 text-[#FF902B] shrink-0 mt-0.5" />
               <span>
-                Lending reduces available cash/bank now and tracks a receivable asset. When repaid, it recovers principal without counting as taxable income.
+                Lending is an asset transfer, not an expense. When repaid, it restores your balance without double-counting income.
               </span>
             </div>
 
             {/* Borrower Name */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Borrower Name <span className="text-red-500">*</span>
+              <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">
+                Borrower Name <span className="text-rose-500">*</span>
               </label>
               <input
                 type="text"
-                placeholder="Who are you lending to? (e.g. Ranjan)"
+                placeholder="e.g. Ranjan, Alex, Sister…"
                 value={form.borrower_name}
                 onChange={set('borrower_name')}
-                className={`w-full px-4 py-3 rounded-xl border text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white transition ${errors.borrower_name ? 'border-red-400' : 'border-slate-200'}`}
+                className={`w-full px-4 py-3 rounded-2xl border text-xs sm:text-sm bg-[#FAF6F0] text-[#24151B] focus:bg-white focus:outline-none focus:border-[#FF902B] transition-all ${errors.borrower_name ? 'border-rose-400' : 'border-stone-200'}`}
               />
-              {errors.borrower_name && <p className="mt-1 text-xs text-red-600">{errors.borrower_name}</p>}
+              {errors.borrower_name && <p className="mt-1 text-xs text-rose-600 font-semibold">{errors.borrower_name}</p>}
 
-              {/* Quick suggestion chips */}
               <div className="flex flex-wrap gap-1.5 mt-2">
                 {COMMON_BORROWERS.map((name) => (
                   <button
                     key={name}
                     type="button"
                     onClick={() => setForm((f) => ({ ...f, borrower_name: name }))}
-                    className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 transition cursor-pointer"
+                    className="px-3 py-1 rounded-full text-[11px] font-bold bg-[#FAF6F0] text-stone-600 border border-stone-200 hover:bg-[#FFF0E2] hover:text-[#FF902B] transition cursor-pointer"
                   >
                     {name}
                   </button>
@@ -180,11 +181,11 @@ export default function LendModal({ accountId, onSuccess, onClose, cashBalance, 
 
             {/* Amount */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Amount (₹) <span className="text-red-500">*</span>
+              <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">
+                Amount (₹) <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">₹</span>
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 font-extrabold text-sm">₹</span>
                 <input
                   type="number"
                   min="0.01"
@@ -192,34 +193,33 @@ export default function LendModal({ accountId, onSuccess, onClose, cashBalance, 
                   placeholder="0.00"
                   value={form.amount}
                   onChange={set('amount')}
-                  className={`w-full pl-7 pr-4 py-3 rounded-xl border text-sm font-semibold text-slate-900 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white transition ${errors.amount ? 'border-red-400' : 'border-slate-200'}`}
+                  className={`w-full pl-9 pr-4 py-3 rounded-2xl border text-sm font-extrabold text-[#24151B] bg-[#FAF6F0] focus:bg-white focus:outline-none focus:border-[#FF902B] transition-all ${errors.amount ? 'border-rose-400' : 'border-stone-200'}`}
                 />
               </div>
-              {errors.amount && <p className="mt-1 text-xs text-red-600">{errors.amount}</p>}
+              {errors.amount && <p className="mt-1 text-xs text-rose-600 font-semibold">{errors.amount}</p>}
 
-              {/* Smart auto-switch suggestion */}
               {enteredAmt > cash && bank >= enteredAmt && form.balance_type === 'CASH' && (
-                <div className="mt-2 flex items-center justify-between rounded-xl bg-amber-50 p-2.5 text-xs text-amber-900 border border-amber-300">
-                  <span>💡 Cash has ₹{cash.toFixed(2)}. Your Bank has ₹{bank.toFixed(2)}.</span>
+                <div className="mt-2.5 flex items-center justify-between rounded-2xl bg-[#FFF0E2] p-3 text-xs text-[#B85700] border border-amber-200">
+                  <span>💡 Cash has ₹{cash.toFixed(2)}. Bank has ₹{bank.toFixed(2)}.</span>
                   <button
                     type="button"
                     onClick={() => {
                       setForm((f) => ({ ...f, balance_type: 'BANK' }));
                       setErrors((e) => ({ ...e, amount: undefined }));
                     }}
-                    className="ml-2 px-2.5 py-1 rounded-lg bg-amber-600 text-white font-bold text-xs hover:bg-amber-700 transition cursor-pointer"
+                    className="ml-2 px-3 py-1.5 rounded-full bg-[#FF902B] text-white font-extrabold text-[11px] hover:bg-[#E0791B] transition cursor-pointer shadow-xs"
                   >
-                    Switch to Bank
+                    Use Bank
                   </button>
                 </div>
               )}
             </div>
 
-            {/* Payment Source */}
+            {/* Source Balance */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-semibold text-slate-700">Disburse from</label>
-                <span className="text-[11px] text-slate-400">Total available: ₹{(cash + bank).toFixed(2)}</span>
+                <label className="block text-xs font-bold text-stone-600 uppercase tracking-wider">Disburse From</label>
+                <span className="text-[11px] text-stone-400">Available: ₹{(cash + bank).toFixed(2)}</span>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 {[
@@ -236,23 +236,21 @@ export default function LendModal({ accountId, onSuccess, onClose, cashBalance, 
                         setForm((f) => ({ ...f, balance_type: value }));
                         setErrors((e) => ({ ...e, amount: undefined }));
                       }}
-                      className={`flex items-start gap-2.5 p-3 rounded-xl border-2 transition cursor-pointer text-left ${
-                        isSelected
-                          ? 'border-amber-500 bg-amber-50 shadow-sm'
-                          : 'border-slate-200 bg-white hover:border-slate-300'
+                      className={`flex items-start gap-2.5 p-3 rounded-2xl border-2 transition cursor-pointer text-left ${
+                        isSelected ? 'border-[#331B24] bg-[#FAF6F0]' : 'border-stone-200 bg-white hover:border-stone-300'
                       }`}
                     >
-                      <Icon className={`w-5 h-5 mt-0.5 shrink-0 ${isSelected ? 'text-amber-600' : 'text-slate-400'}`} />
+                      <Icon className={`w-5 h-5 mt-0.5 shrink-0 ${isSelected ? 'text-[#FF902B]' : 'text-stone-400'}`} />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between">
-                          <p className={`text-xs font-bold ${isSelected ? 'text-amber-900' : 'text-slate-700'}`}>{label}</p>
-                          <span className={`text-[11px] font-bold ${available > 0 ? (isSelected ? 'text-amber-800' : 'text-slate-700') : 'text-slate-400'}`}>
+                          <p className={`text-xs font-bold ${isSelected ? 'text-[#24151B]' : 'text-stone-600'}`}>{label}</p>
+                          <span className={`text-[11px] font-bold ${available > 0 ? (isSelected ? 'text-[#075743]' : 'text-stone-700') : 'text-stone-400'}`}>
                             ₹{available.toFixed(2)}
                           </span>
                         </div>
-                        <p className="text-[10px] text-slate-400 truncate mt-0.5">{desc}</p>
+                        <p className="text-[10px] text-stone-400 truncate mt-0.5">{desc}</p>
                         {isInsufficient && (
-                          <span className="inline-block text-[10px] font-semibold text-rose-600 mt-0.5">
+                          <span className="inline-block text-[10px] font-bold text-rose-600 mt-0.5">
                             Insufficient
                           </span>
                         )}
@@ -265,25 +263,25 @@ export default function LendModal({ accountId, onSuccess, onClose, cashBalance, 
 
             {/* Date */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Lending Date</label>
+              <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">Lending Date</label>
               <input
                 type="date"
                 value={form.date}
                 max={today()}
                 onChange={set('date')}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white transition"
+                className="w-full px-4 py-2.5 rounded-2xl border border-stone-200 text-xs sm:text-sm bg-[#FAF6F0] text-[#24151B] focus:bg-white focus:outline-none focus:border-[#FF902B] transition"
               />
             </div>
 
             {/* Note */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Note / Purpose (Optional)</label>
+              <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">Purpose / Note (Optional)</label>
               <input
                 type="text"
-                placeholder="e.g. Travel emergency, College books..."
+                placeholder="e.g. Emergency, Rent, College books…"
                 value={form.note}
                 onChange={set('note')}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white transition"
+                className="w-full px-4 py-2.5 rounded-2xl border border-stone-200 text-xs sm:text-sm bg-[#FAF6F0] text-[#24151B] focus:bg-white focus:outline-none focus:border-[#FF902B] transition"
               />
             </div>
 
@@ -291,12 +289,12 @@ export default function LendModal({ accountId, onSuccess, onClose, cashBalance, 
             <button
               type="submit"
               disabled={status === 'loading'}
-              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-600 text-white text-sm font-bold shadow hover:from-amber-600 hover:to-yellow-700 transition disabled:opacity-60 flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full py-3.5 rounded-full bg-[#FF902B] text-white text-xs font-extrabold shadow-md hover:bg-[#E0791B] active:scale-95 transition disabled:opacity-60 flex items-center justify-center gap-2 cursor-pointer mt-2"
             >
               {status === 'loading' ? (
-                <><Loader2 className="w-4 h-4 animate-spin" /> Recording Loan…</>
+                <><Loader2 className="w-4 h-4 animate-spin text-white" /> Recording Loan…</>
               ) : (
-                <><HandCoins className="w-4 h-4" /> Record Loan</>
+                <><Plus className="w-4 h-4" /> Disburse &amp; Record Loan</>
               )}
             </button>
           </form>

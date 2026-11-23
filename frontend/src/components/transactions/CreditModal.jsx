@@ -82,72 +82,75 @@ export default function CreditModal({ accountId, onSuccess, onClose }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-[#331B24]/40 backdrop-blur-sm animate-in fade-in duration-200"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-full sm:max-w-md bg-white sm:rounded-3xl rounded-t-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-200 max-h-[92vh] flex flex-col">
+      <div className="w-full sm:max-w-md bg-[#FAF6F0] rounded-t-[36px] sm:rounded-[36px] shadow-[0_20px_60px_rgba(51,27,36,0.25)] border border-[#331B24]/10 overflow-hidden animate-in slide-in-from-bottom-6 duration-300 max-h-[92vh] flex flex-col font-sans">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center shadow-sm">
-              <CreditCard className="w-5 h-5 text-white" />
+        <div className="flex items-center justify-between px-6 py-5 border-b border-[#331B24]/5 bg-white shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-[#D2B4ED]/30 flex items-center justify-center text-[#331B24]">
+              <CreditCard className="w-5 h-5 text-[#331B24]" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900">Record Credit / Debt</h2>
-              <p className="text-xs text-slate-500">Track liabilities you owe to others</p>
+              <h2 className="text-base font-extrabold text-[#331B24] tracking-tight">Record Credit / Debt</h2>
+              <p className="text-xs text-[#331B24]/60 font-medium">Track liabilities you owe to others</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 transition-colors cursor-pointer">
-            <X className="w-5 h-5" />
+          <button
+            onClick={onClose}
+            className="w-9 h-9 rounded-full bg-[#FAF6F0] hover:bg-[#331B24]/10 text-[#331B24] flex items-center justify-center transition-all cursor-pointer"
+          >
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {status === 'success' ? (
-          <div className="p-8 text-center space-y-3">
-            <div className="w-16 h-16 rounded-full bg-green-50 mx-auto flex items-center justify-center">
-              <CheckCircle className="w-9 h-9 text-green-500" />
+          <div className="p-8 text-center space-y-4 bg-white flex-1">
+            <div className="w-16 h-16 rounded-full bg-[#C5F52A]/30 mx-auto flex items-center justify-center">
+              <CheckCircle className="w-9 h-9 text-[#075743]" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900">Credit Recorded!</h3>
-            <p className="text-sm text-slate-500">
+            <h3 className="text-xl font-extrabold text-[#331B24]">Credit Recorded!</h3>
+            <p className="text-sm text-[#331B24]/70 max-w-xs mx-auto leading-relaxed">
               {form.receive_funds
                 ? 'Borrowed money added to your balance, and liability recorded in Credit Outstanding.'
                 : 'Existing debt recorded in your Credit Outstanding liabilities.'}
             </p>
             <button
               onClick={onClose}
-              className="mt-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-sm font-bold shadow cursor-pointer"
+              className="mt-3 px-8 py-3.5 rounded-full bg-[#331B24] text-white text-sm font-bold shadow hover:bg-[#41232E] transition-all cursor-pointer"
             >
               Done
             </button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
+          <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto bg-white flex-1">
             {serverError && (
-              <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-500" />
                 <span>{serverError}</span>
               </div>
             )}
 
-            {/* Distinction Choice: Existing Debt vs Cash Received */}
+            {/* Distinction Choice: Existing Debt vs Borrowed Funds */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Credit Type / Flow <span className="text-red-500">*</span>
+              <label className="block text-xs font-bold text-[#331B24]/80 mb-2">
+                Credit Type / Flow <span className="text-rose-500">*</span>
               </label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2.5">
                 <button
                   type="button"
                   onClick={() => setForm((f) => ({ ...f, receive_funds: false }))}
-                  className={`p-3 rounded-xl border-2 text-left transition cursor-pointer ${
+                  className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer ${
                     !form.receive_funds
-                      ? 'border-blue-500 bg-blue-50/60'
-                      : 'border-slate-200 bg-white hover:border-slate-300'
+                      ? 'border-[#331B24] bg-[#FAF6F0] shadow-sm'
+                      : 'border-transparent bg-[#FAF6F0]/60 hover:bg-[#FAF6F0]'
                   }`}
                 >
-                  <p className={`text-xs font-bold ${!form.receive_funds ? 'text-blue-700' : 'text-slate-800'}`}>
+                  <p className={`text-xs font-extrabold ${!form.receive_funds ? 'text-[#331B24]' : 'text-[#331B24]/70'}`}>
                     Existing Debt
                   </p>
-                  <p className="text-[10px] text-slate-500 mt-0.5">
+                  <p className="text-[10px] text-[#331B24]/60 font-medium mt-1 leading-snug">
                     Store tab, unpaid bill (balance unchanged)
                   </p>
                 </button>
@@ -155,16 +158,16 @@ export default function CreditModal({ accountId, onSuccess, onClose }) {
                 <button
                   type="button"
                   onClick={() => setForm((f) => ({ ...f, receive_funds: true }))}
-                  className={`p-3 rounded-xl border-2 text-left transition cursor-pointer ${
+                  className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer ${
                     form.receive_funds
-                      ? 'border-blue-500 bg-blue-50/60'
-                      : 'border-slate-200 bg-white hover:border-slate-300'
+                      ? 'border-[#331B24] bg-[#FAF6F0] shadow-sm'
+                      : 'border-transparent bg-[#FAF6F0]/60 hover:bg-[#FAF6F0]'
                   }`}
                 >
-                  <p className={`text-xs font-bold ${form.receive_funds ? 'text-blue-700' : 'text-slate-800'}`}>
+                  <p className={`text-xs font-extrabold ${form.receive_funds ? 'text-[#331B24]' : 'text-[#331B24]/70'}`}>
                     Borrowed Funds
                   </p>
-                  <p className="text-[10px] text-slate-500 mt-0.5">
+                  <p className="text-[10px] text-[#331B24]/60 font-medium mt-1 leading-snug">
                     Cash received now into Cash or Bank
                   </p>
                 </button>
@@ -173,26 +176,26 @@ export default function CreditModal({ accountId, onSuccess, onClose }) {
 
             {/* Creditor Name */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Creditor / Lender Name <span className="text-red-500">*</span>
+              <label className="block text-xs font-bold text-[#331B24]/80 mb-1.5">
+                Creditor / Lender Name <span className="text-rose-500">*</span>
               </label>
               <input
                 type="text"
                 placeholder="e.g. HDFC, Sharma Ji, Deepak..."
                 value={form.creditor_name}
                 onChange={set('creditor_name')}
-                className={`w-full px-4 py-3 rounded-xl border text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white transition ${errors.creditor_name ? 'border-red-400' : 'border-slate-200'}`}
+                className={`w-full px-4 py-3 rounded-2xl border text-sm font-semibold text-[#331B24] bg-[#FAF6F0] focus:outline-none focus:ring-2 focus:ring-[#331B24]/20 focus:bg-white transition ${errors.creditor_name ? 'border-rose-400' : 'border-[#331B24]/10'}`}
               />
-              {errors.creditor_name && <p className="mt-1 text-xs text-red-600">{errors.creditor_name}</p>}
+              {errors.creditor_name && <p className="mt-1 text-xs text-rose-600 font-semibold">{errors.creditor_name}</p>}
 
               {/* Quick suggestion chips */}
-              <div className="flex flex-wrap gap-1.5 mt-2">
+              <div className="flex flex-wrap gap-1.5 mt-2.5">
                 {COMMON_CREDITORS.map((name) => (
                   <button
                     key={name}
                     type="button"
                     onClick={() => setForm((f) => ({ ...f, creditor_name: name }))}
-                    className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition cursor-pointer"
+                    className="px-3 py-1 rounded-full text-[11px] font-bold bg-[#FAF6F0] text-[#331B24]/80 border border-[#331B24]/10 hover:border-[#331B24]/30 hover:bg-white transition cursor-pointer"
                   >
                     {name}
                   </button>
@@ -202,11 +205,11 @@ export default function CreditModal({ accountId, onSuccess, onClose }) {
 
             {/* Amount */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Amount (₹) <span className="text-red-500">*</span>
+              <label className="block text-xs font-bold text-[#331B24]/80 mb-1.5">
+                Amount (₹) <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">₹</span>
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#331B24]/40 font-bold text-base">₹</span>
                 <input
                   type="number"
                   min="0.01"
@@ -214,17 +217,17 @@ export default function CreditModal({ accountId, onSuccess, onClose }) {
                   placeholder="0.00"
                   value={form.amount}
                   onChange={set('amount')}
-                  className={`w-full pl-7 pr-4 py-3 rounded-xl border text-sm font-semibold text-slate-900 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white transition ${errors.amount ? 'border-red-400' : 'border-slate-200'}`}
+                  className={`w-full pl-9 pr-4 py-3 rounded-2xl border text-base font-extrabold text-[#331B24] bg-[#FAF6F0] focus:outline-none focus:ring-2 focus:ring-[#331B24]/20 focus:bg-white transition ${errors.amount ? 'border-rose-400' : 'border-[#331B24]/10'}`}
                 />
               </div>
-              {errors.amount && <p className="mt-1 text-xs text-red-600">{errors.amount}</p>}
+              {errors.amount && <p className="mt-1 text-xs text-rose-600 font-semibold">{errors.amount}</p>}
             </div>
 
             {/* If Receive Funds: Choose Destination Balance */}
             {form.receive_funds && (
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Deposit borrowed money into</label>
-                <div className="grid grid-cols-2 gap-2">
+                <label className="block text-xs font-bold text-[#331B24]/80 mb-1.5">Deposit borrowed money into</label>
+                <div className="grid grid-cols-2 gap-2.5">
                   {[
                     { value: 'CASH', label: 'Cash Balance', Icon: Wallet },
                     { value: 'BANK', label: 'Bank Balance', Icon: Landmark },
@@ -233,14 +236,14 @@ export default function CreditModal({ accountId, onSuccess, onClose }) {
                       key={value}
                       type="button"
                       onClick={() => setForm((f) => ({ ...f, destination_balance_type: value }))}
-                      className={`flex items-center gap-2.5 p-3 rounded-xl border-2 transition cursor-pointer ${
+                      className={`flex items-center gap-2.5 p-3 rounded-2xl border-2 transition-all cursor-pointer ${
                         form.destination_balance_type === value
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-slate-200 bg-white hover:border-slate-300'
+                          ? 'border-[#331B24] bg-[#FAF6F0]'
+                          : 'border-transparent bg-[#FAF6F0]/60 hover:bg-[#FAF6F0]'
                       }`}
                     >
-                      <Icon className={`w-5 h-5 ${form.destination_balance_type === value ? 'text-blue-600' : 'text-slate-400'}`} />
-                      <span className={`text-xs font-bold ${form.destination_balance_type === value ? 'text-blue-700' : 'text-slate-700'}`}>{label}</span>
+                      <Icon className={`w-4 h-4 ${form.destination_balance_type === value ? 'text-[#331B24]' : 'text-[#331B24]/50'}`} />
+                      <span className={`text-xs font-bold ${form.destination_balance_type === value ? 'text-[#331B24]' : 'text-[#331B24]/70'}`}>{label}</span>
                     </button>
                   ))}
                 </div>
@@ -250,19 +253,19 @@ export default function CreditModal({ accountId, onSuccess, onClose }) {
             {/* Dates: Credit Date & Optional Pay By Date */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Date Borrowed</label>
+                <label className="block text-xs font-bold text-[#331B24]/80 mb-1.5">Date Borrowed</label>
                 <input
                   type="date"
                   value={form.credit_date}
                   max={today()}
                   onChange={set('credit_date')}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white transition"
+                  className="w-full px-4 py-2.5 rounded-2xl border border-[#331B24]/10 text-xs font-semibold text-[#331B24] bg-[#FAF6F0] focus:outline-none focus:ring-2 focus:ring-[#331B24]/20 focus:bg-white transition"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Pay By Date <span className="text-slate-400 font-normal">(Optional)</span>
+                <label className="block text-xs font-bold text-[#331B24]/80 mb-1.5">
+                  Pay By Date <span className="text-[#331B24]/40 font-normal">(Optional)</span>
                 </label>
                 <input
                   type="date"
@@ -270,20 +273,20 @@ export default function CreditModal({ accountId, onSuccess, onClose }) {
                   min={today()}
                   max="2099-12-31"
                   onChange={set('pay_by_date')}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white transition"
+                  className="w-full px-4 py-2.5 rounded-2xl border border-[#331B24]/10 text-xs font-semibold text-[#331B24] bg-[#FAF6F0] focus:outline-none focus:ring-2 focus:ring-[#331B24]/20 focus:bg-white transition"
                 />
               </div>
             </div>
 
             {/* Description */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Description (Optional)</label>
+              <label className="block text-xs font-bold text-[#331B24]/80 mb-1.5">Description (Optional)</label>
               <input
                 type="text"
                 placeholder="e.g. Month end store tab, Bike repair loan..."
                 value={form.description}
                 onChange={set('description')}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white transition"
+                className="w-full px-4 py-2.5 rounded-2xl border border-[#331B24]/10 text-xs font-semibold text-[#331B24] bg-[#FAF6F0] focus:outline-none focus:ring-2 focus:ring-[#331B24]/20 focus:bg-white transition"
               />
             </div>
 
@@ -291,12 +294,12 @@ export default function CreditModal({ accountId, onSuccess, onClose }) {
             <button
               type="submit"
               disabled={status === 'loading'}
-              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-sm font-bold shadow hover:from-blue-600 hover:to-indigo-700 transition disabled:opacity-60 flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full py-4 rounded-full bg-[#331B24] hover:bg-[#41232E] text-white text-sm font-extrabold tracking-wide shadow-md transition-all disabled:opacity-60 flex items-center justify-center gap-2 cursor-pointer mt-2"
             >
               {status === 'loading' ? (
-                <><Loader2 className="w-4 h-4 animate-spin" /> Recording Debt…</>
+                <><Loader2 className="w-4 h-4 animate-spin text-[#C5F52A]" /> Recording Debt…</>
               ) : (
-                <><CreditCard className="w-4 h-4" /> Record Credit</>
+                <><CreditCard className="w-4 h-4 text-[#C5F52A]" /> Record Credit</>
               )}
             </button>
           </form>

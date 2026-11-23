@@ -1,6 +1,14 @@
 import React from 'react';
-import logoImg from '../assets/logo.jpg';
-import { IndianRupee, Landmark, Banknote, TrendingUp, Sparkles, HandCoins, CreditCard, ArrowRight } from 'lucide-react';
+import WalletMascot from './WalletMascot';
+import { 
+  Plus, 
+  Minus, 
+  Wallet, 
+  Landmark, 
+  HandCoins, 
+  CreditCard, 
+  ArrowUpRight
+} from 'lucide-react';
 
 export default function BalanceCard({
   totalBalance = 0,
@@ -9,7 +17,9 @@ export default function BalanceCard({
   lentBalance = 0,
   creditBalance = 0,
   currency = '₹',
-  onNavigateTab
+  onNavigateTab,
+  onAddCash,
+  onExpense
 }) {
   const formatCurrency = (val) => {
     return new Intl.NumberFormat('en-IN', {
@@ -20,154 +30,160 @@ export default function BalanceCard({
 
   return (
     <div className="space-y-4">
-      {/* Primary Hero Card: Total Available Balance */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-orange-500 via-amber-500 to-amber-600 p-6 text-white shadow-lg shadow-orange-500/15">
-        {/* Decorative background glow */}
-        <div className="absolute -right-8 -top-8 w-44 h-44 rounded-full bg-white/10 blur-2xl pointer-events-none" />
-        <div className="absolute -left-8 -bottom-8 w-36 h-36 rounded-full bg-amber-400/20 blur-xl pointer-events-none" />
-
-        {/* Branded Watermark in Hero Card */}
-        <div className="hidden sm:block absolute right-6 bottom-4 w-24 h-24 rounded-2xl overflow-hidden opacity-20 pointer-events-none border border-white/20 shadow-md">
-          <img src={logoImg} alt="ApnaWallet emblem" className="w-full h-full object-cover" />
+      {/* Container with relative mascot peeking over the top */}
+      <div className="relative pt-8 sm:pt-10">
+        {/* Playful Orange Mascot peeking from top-center */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 z-0">
+          <WalletMascot className="w-24 h-16 sm:w-28 sm:h-20" />
         </div>
 
-        <div className="relative z-10 flex flex-col justify-between h-full space-y-4">
+        {/* Deep Plum Hero Card */}
+        <div className="relative z-10 overflow-hidden rounded-[32px] bg-[#331B24] text-white p-6 sm:p-8 shadow-[0_20px_50px_rgba(51,27,36,0.22)] border border-[#462532]">
+          {/* Subtle decorative radial glow */}
+          <div className="absolute -right-16 -top-16 w-56 h-56 rounded-full bg-[#D2B4ED]/10 blur-3xl pointer-events-none" />
+          <div className="absolute -left-12 -bottom-12 w-48 h-48 rounded-full bg-[#C5F52A]/10 blur-2xl pointer-events-none" />
+
+          {/* Top Label & Currency Pill */}
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <span className="p-1.5 rounded-lg bg-white/20 backdrop-blur-md">
-                <Sparkles className="w-4 h-4 text-amber-100" />
-              </span>
-              <p className="text-xs font-semibold uppercase tracking-wider text-amber-100">
+              <span className="w-2 h-2 rounded-full bg-[#C5F52A] animate-pulse" />
+              <span className="text-xs font-bold tracking-wide uppercase text-[#D2B4ED]/90">
                 Total Available Balance
-              </p>
+              </span>
             </div>
-            <span className="text-[11px] font-medium px-2.5 py-1 rounded-full bg-white/15 backdrop-blur-md border border-white/20 text-white">
+            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-white/10 text-[#F5EFE3] border border-white/10 backdrop-blur-sm">
               INR (₹)
             </span>
           </div>
 
-          <div>
-            <div className="flex items-baseline space-x-1">
-              <span className="text-3xl font-light text-amber-100">{currency}</span>
-              <span className="text-4xl md:text-5xl font-extrabold tracking-tight">
+          {/* Primary Amount Display */}
+          <div className="mt-4 sm:mt-5 text-center sm:text-left">
+            <div className="flex items-baseline justify-center sm:justify-start space-x-1">
+              <span className="text-3xl sm:text-4xl font-semibold text-[#D2B4ED]">{currency}</span>
+              <span className="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-[#FAF6F0]">
                 {formatCurrency(totalBalance)}
               </span>
             </div>
-            <p className="text-xs text-amber-100/90 mt-1 flex items-center gap-1">
-              <TrendingUp className="w-3.5 h-3.5" />
-              Available Balance = Cash + Bank (Spendable Funds)
-            </p>
+
+            {/* Cash & Bank Split Pills */}
+            <div className="mt-4 flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs">
+              <div className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-white/10 text-white/90 border border-white/5">
+                <Wallet className="w-3.5 h-3.5 text-[#FF902B]" />
+                <span className="font-medium text-white/70">Cash:</span>
+                <span className="font-bold">{currency}{formatCurrency(cashBalance)}</span>
+              </div>
+              <div className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-white/10 text-white/90 border border-white/5">
+                <Landmark className="w-3.5 h-3.5 text-[#C5F52A]" />
+                <span className="font-medium text-white/70">Bank:</span>
+                <span className="font-bold">{currency}{formatCurrency(bankBalance)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Primary Pill Action Buttons inside Hero Card */}
+          <div className="mt-6 sm:mt-7 grid grid-cols-2 gap-3 pt-5 border-t border-white/10">
+            <button
+              type="button"
+              onClick={onAddCash}
+              className="flex items-center justify-center space-x-2 py-3.5 px-4 rounded-full bg-white text-[#24151B] font-bold text-sm hover:bg-[#FAF6F0] active:scale-95 transition-all shadow-md cursor-pointer"
+            >
+              <Plus className="w-4 h-4 text-[#FF902B]" />
+              <span>Add Cash</span>
+            </button>
+            <button
+              type="button"
+              onClick={onExpense}
+              className="flex items-center justify-center space-x-2 py-3.5 px-4 rounded-full bg-[#C5F52A] text-[#1C1014] font-extrabold text-sm hover:bg-[#B4E81E] active:scale-95 transition-all shadow-md cursor-pointer"
+            >
+              <Minus className="w-4 h-4 text-[#1C1014]" />
+              <span>Expense</span>
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Sub-balances: Cash vs Bank Balance */}
+      {/* Bento Grid: Money Lent (Receivables) & Credit Outstanding (Liabilities) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* Cash Balance Card */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-xs hover:border-amber-200 transition-all">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Cash Balance
-            </span>
-            <div className="w-8 h-8 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center">
-              <Banknote className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="flex items-baseline space-x-1">
-            <span className="text-lg font-light text-slate-400">{currency}</span>
-            <span className="text-2xl font-bold text-slate-800">
-              {formatCurrency(cashBalance)}
-            </span>
-          </div>
-          <p className="text-[11px] text-slate-400 mt-1">Physical cash on hand</p>
-        </div>
-
-        {/* Bank Balance Card */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-xs hover:border-amber-200 transition-all">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Bank Balance
-            </span>
-            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
-              <Landmark className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="flex items-baseline space-x-1">
-            <span className="text-lg font-light text-slate-400">{currency}</span>
-            <span className="text-2xl font-bold text-slate-800">
-              {formatCurrency(bankBalance)}
-            </span>
-          </div>
-          <p className="text-[11px] text-slate-400 mt-1">Savings &amp; checking accounts</p>
-        </div>
-      </div>
-
-      {/* Prompt 05 Milestone 10: Money Lent (Receivables) & Credit Outstanding (Liabilities) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* Money Lent Card */}
-        <div className="bg-white rounded-2xl p-5 border border-amber-200/80 shadow-xs hover:shadow-md transition-all group flex flex-col justify-between">
+        {/* Money Lent Card (Warm Lavender / Amber) */}
+        <div className="rounded-[28px] bg-white p-5 sm:p-6 border border-stone-200/60 shadow-[0_8px_30px_rgba(51,27,36,0.04)] flex flex-col justify-between hover:shadow-md transition-all group">
           <div>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
-                <HandCoins className="w-4 h-4 text-amber-600" />
-                Money Lent (Receivables)
-              </span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
-                Asset
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-full bg-[#FFF0E2] text-[#FF902B] flex items-center justify-center">
+                  <HandCoins className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-stone-500">
+                    Money Lent
+                  </h4>
+                  <p className="text-[11px] text-stone-400">Receivables (Assets)</p>
+                </div>
+              </div>
+              <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-[#FFF0E2] text-[#FF902B]">
+                ASSET
               </span>
             </div>
-            <div className="flex items-baseline space-x-1">
-              <span className="text-lg font-light text-amber-600">{currency}</span>
-              <span className="text-2xl font-bold text-slate-900">
+
+            <div className="mt-4 flex items-baseline space-x-1">
+              <span className="text-lg font-medium text-stone-400">{currency}</span>
+              <span className="text-2xl sm:text-3xl font-extrabold text-[#24151B]">
                 {formatCurrency(lentBalance)}
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">
-              Money owed to you by others (not spendable cash)
+            <p className="mt-1 text-xs text-stone-400">
+              Owed to you by friends &amp; borrowers
             </p>
           </div>
 
           {onNavigateTab && (
             <button
               onClick={() => onNavigateTab('lending')}
-              className="mt-3.5 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-amber-700 hover:text-amber-800 group-hover:translate-x-0.5 transition-all cursor-pointer"
+              className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs font-bold text-[#FF902B] hover:text-[#E0791B] transition-colors cursor-pointer group-hover:translate-x-0.5"
             >
-              <span>Manage Borrowers &amp; Repayments</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              <span>Manage Borrowers</span>
+              <ArrowUpRight className="w-4 h-4" />
             </button>
           )}
         </div>
 
-        {/* Credit Outstanding Card */}
-        <div className="bg-white rounded-2xl p-5 border border-rose-200/80 shadow-xs hover:shadow-md transition-all group flex flex-col justify-between">
+        {/* Credit Outstanding Card (Soft Plum / Rose) */}
+        <div className="rounded-[28px] bg-white p-5 sm:p-6 border border-stone-200/60 shadow-[0_8px_30px_rgba(51,27,36,0.04)] flex flex-col justify-between hover:shadow-md transition-all group">
           <div>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold text-rose-800 uppercase tracking-wider flex items-center gap-1.5">
-                <CreditCard className="w-4 h-4 text-rose-600" />
-                Credit Outstanding (Liabilities)
-              </span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800">
-                Liability
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-full bg-[#F2EAF9] text-[#7E45A8] flex items-center justify-center">
+                  <CreditCard className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-stone-500">
+                    Credit Used
+                  </h4>
+                  <p className="text-[11px] text-stone-400">Debts &amp; Payables</p>
+                </div>
+              </div>
+              <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-[#F2EAF9] text-[#7E45A8]">
+                LIABILITY
               </span>
             </div>
-            <div className="flex items-baseline space-x-1">
-              <span className="text-lg font-light text-rose-500">{currency}</span>
-              <span className="text-2xl font-bold text-slate-900">
+
+            <div className="mt-4 flex items-baseline space-x-1">
+              <span className="text-lg font-medium text-stone-400">{currency}</span>
+              <span className="text-2xl sm:text-3xl font-extrabold text-[#24151B]">
                 {formatCurrency(creditBalance)}
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">
-              Debts you owe to creditors &amp; stores
+            <p className="mt-1 text-xs text-stone-400">
+              Outstanding debt owed to creditors
             </p>
           </div>
 
           {onNavigateTab && (
             <button
               onClick={() => onNavigateTab('credit')}
-              className="mt-3.5 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-rose-700 hover:text-rose-800 group-hover:translate-x-0.5 transition-all cursor-pointer"
+              className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs font-bold text-[#7E45A8] hover:text-[#67348C] transition-colors cursor-pointer group-hover:translate-x-0.5"
             >
-              <span>Manage Creditors &amp; Repay Debt</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              <span>Manage Creditors</span>
+              <ArrowUpRight className="w-4 h-4" />
             </button>
           )}
         </div>
