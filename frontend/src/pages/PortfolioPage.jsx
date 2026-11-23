@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Target, TrendingUp, Plus, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, Trash2 } from 'lucide-react';
+import { Target, TrendingUp, Plus, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, Trash2, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
   actOnSavingsGoal,
@@ -47,6 +47,8 @@ export default function PortfolioPage() {
   const [investments, setInvestments] = useState(null);
   const [goalForm, setGoalForm] = useState(initialGoalForm);
   const [amount, setAmount] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [modalFeedback, setModalFeedback] = useState(null);
   const [investmentForm, setInvestmentForm] = useState({
     name: '',
     investment_type: 'STOCKS',
@@ -80,6 +82,85 @@ export default function PortfolioPage() {
       await Promise.all([load(), refreshUserData({ preserveUser: true, onlyAccounts: true })]);
     } catch (e) {
       setError(e.message);
+    }
+  };
+
+  const handleDeposit = async () => {
+    if (isSubmitting) return;
+    const num = parseFloat(amount);
+    if (!amount || isNaN(num) || num <= 0) {
+      setError('Please enter a valid amount to save.');
+      return;
+    }
+    setIsSubmitting(true);
+    setError('');
+    try {
+      await depositSavings(active.id, { amount: num, balance_type: 'BANK' });
+      const depositedAmount = num;
+      setAmount(''); // Reset input amount to prevent duplicate deposits
+      await Promise.all([load(), refreshUserData({ preserveUser: true, onlyAccounts: true })]);
+      setModalFeedback({
+        title: 'Savings Added!',
+        message: `₹${money(depositedAmount)} successfully saved toward "${active.name}".`,
+        type: 'success',
+      });
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    if (isSubmitting) return;
+    const num = parseFloat(amount);
+    if (!amount || isNaN(num) || num <= 0) {
+      setError('Please enter a valid amount to withdraw.');
+      return;
+    }
+    if (active && num > parseFloat(active.saved_amount)) {
+      setError(`Cannot withdraw ₹${money(num)}. Only ₹${money(active.saved_amount)} is currently saved.`);
+      return;
+    }
+    setIsSubmitting(true);
+    setError('');
+    try {
+      await withdrawSavings(active.id, { amount: num, balance_type: 'BANK' });
+      const withdrawnAmount = num;
+      setAmount(''); // Reset input amount to 0/empty to prevent duplicate withdrawals
+      await Promise.all([load(), refreshUserData({ preserveUser: true, onlyAccounts: true })]);
+      setModalFeedback({
+        title: 'Withdrawal Successful!',
+        message: `₹${money(withdrawnAmount)} has been withdrawn from "${active.name}" and returned to your Bank balance.`,
+        type: 'success',
+      });
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCancelGoal = async () => {
+    if (isSubmitting) return;
+    if (!window.confirm(`Are you sure you want to cancel the goal "${active.name}"? Any remaining balance will be returned to Bank.`)) {
+      return;
+    }
+    setIsSubmitting(true);
+    setError('');
+    try {
+      await actOnSavingsGoal(active.id, 'cancel', 'BANK');
+      setAmount('');
+      await Promise.all([load(), refreshUserData({ preserveUser: true, onlyAccounts: true })]);
+      setModalFeedback({
+        title: 'Goal Cancelled',
+        message: `"${active.name}" was cancelled. Remaining funds have been refunded to Bank.`,
+        type: 'info',
+      });
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -157,23 +238,40 @@ export default function PortfolioPage() {
                 step="any"
                 placeholder="0.00"
                 value={amount}
+                disabled={isSubmitting}
                 onChange={(e) => setAmount(e.target.value)}
               />
               <button
-                className="mt-5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 transition"
-                onClick={() => run(() => depositSavings(active.id, { amount, balance_type: 'BANK' }))}
+                type="button"
+                disabled={isSubmitting || !amount || Number(amount) <= 0}
+                className="mt-5 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={handleDeposit}
               >
-                <ArrowDownToLine className="mx-auto h-4 w-4" /> Save
+                {isSubmitting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ArrowDownToLine className="h-4 w-4" />
+                )}
+                <span>Save</span>
               </button>
               <button
-                className="mt-5 rounded-xl bg-orange-500 px-3 py-2 text-xs font-bold text-white hover:bg-orange-600 transition"
-                onClick={() => run(() => withdrawSavings(active.id, { amount, balance_type: 'BANK' }))}
+                type="button"
+                disabled={isSubmitting || !amount || Number(amount) <= 0}
+                className="mt-5 flex items-center justify-center gap-1.5 rounded-xl bg-orange-500 px-3 py-2 text-xs font-bold text-white hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={handleWithdraw}
               >
-                <ArrowUpFromLine className="mx-auto h-4 w-4" /> Withdraw
+                {isSubmitting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ArrowUpFromLine className="h-4 w-4" />
+                )}
+                <span>Withdraw</span>
               </button>
               <button
-                className="mt-5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 transition"
-                onClick={() => run(() => actOnSavingsGoal(active.id, 'cancel', 'BANK'))}
+                type="button"
+                disabled={isSubmitting}
+                className="mt-5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={handleCancelGoal}
               >
                 Cancel
               </button>
@@ -413,6 +511,37 @@ export default function PortfolioPage() {
           ))
         )}
       </section>
+
+      {/* Acknowledgment Modal Popup */}
+      {modalFeedback && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+          onClick={() => setModalFeedback(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl text-center space-y-4 border border-slate-100"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+              <CheckCircle2 className="h-8 w-8" />
+            </div>
+            <div>
+              <h3 className="text-lg font-black text-slate-900">{modalFeedback.title}</h3>
+              <p className="mt-2 text-sm text-slate-600">{modalFeedback.message}</p>
+            </div>
+            <button
+              type="button"
+              autoFocus
+              onClick={() => setModalFeedback(null)}
+              className="w-full rounded-xl bg-orange-500 py-2.5 text-sm font-bold text-white hover:bg-orange-600 active:scale-[0.98] transition shadow-md shadow-orange-500/20"
+            >
+              Okay
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
