@@ -63,8 +63,20 @@ function MainApp() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
-      const uid = urlParams.get('uid');
-      const token = urlParams.get('token');
+      let uid = urlParams.get('uid');
+      let token = urlParams.get('token');
+
+      // Also check hash in case query parameters are in the hash (e.g. /#/?uid=... or /#reset-password?uid=...)
+      if (!uid || !token) {
+        const hash = window.location.hash || '';
+        const qIndex = hash.indexOf('?');
+        if (qIndex !== -1) {
+          const hashParams = new URLSearchParams(hash.slice(qIndex));
+          uid = uid || hashParams.get('uid');
+          token = token || hashParams.get('token');
+        }
+      }
+
       if (uid && token) {
         setResetParams({ uid, token });
         setAuthView('reset');

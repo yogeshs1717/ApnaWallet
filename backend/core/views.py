@@ -521,7 +521,8 @@ def password_reset_request_view(request):
         if user:
             uid = urlsafe_base64_encode(force_bytes(user.pk))
             token = default_token_generator.make_token(user)
-            reset_url = f"{settings.FRONTEND_URL}/reset-password?uid={uid}&token={token}"
+            frontend_url = (settings.FRONTEND_URL or '').rstrip('/')
+            reset_url = f"{frontend_url}/?uid={uid}&token={token}"
 
             subject = "ApnaWallet — Password Reset Request"
             message = (
